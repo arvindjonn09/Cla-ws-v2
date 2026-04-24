@@ -156,6 +156,92 @@ async def invite_member(
     return {"message": "Invitation sent", "token": token}
 
 
+@router.get("/{account_id}/members", response_model=list[MemberOut])
+async def list_members(
+    account_id: UUID,
+    member: Annotated[AccountMember, Depends(get_account_member)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    result = await db.execute(
+        select(AccountMember).where(
+            AccountMember.account_id == account_id,
+            AccountMember.status.in_(["active", "pending"]),
+        )
+    )
+    return result.scalars().all()
+
+
+@router.post("/accept-invite")
+async def accept_invite(
+    token: str,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    result = await db.execute(select(InviteToken).where(InviteToken.token == token))
+    invite = result.scalar_one_or_none()
+    if not invite:
+        raise HTTPException(status_code=400, detail="Invalid invite token")
+    if invite.expires_at < datetime.now(timezone.utc):
+        raise HTTPException(status_code=400, detail="Invite token has expired")
+    if invite.status != "pending":
+        raise HTTPException(status_code=400, detail="Invite already used or cancelled")
+
+    # Viewer rule: viewers can never become members (business rule)
+    if invite.role == "member":
+        existing_viewer = await db.execute(
+            select(AccountMember).where(
+                AccountMember.account_id == invite.account_id,
+                AccountMember.user_id == current_user.id,
+                AccountMember.role == "viewer",
+            )
+        )
+        if existing_viewer.scalar_one_or_none():
+            raise HTTPException(status_code=400, detail="Viewers cannot become members (Business Rule #7)")
+
+    # Check not already a member
+    existing = await db.execute(
+        select(AccountMember).where(
+            AccountMember.account_id == invite.account_id,
+            AccountMember.user_id == current_user.id,
+            AccountMember.status == "active",
+        )
+    )
+    if existing.scalar_one_or_none():
+        raise HTTPException(status_code=400, detail="You are already a member of this account")
+
+    # Enforce one joint per user (business rule)
+    if invite.role == "member":
+        acc_result = await db.execute(select(Account).where(Account.id == invite.account_id))
+        account = acc_result.scalar_one_or_none()
+        if account and account.type == "joint":
+            existing_joint = await db.execute(
+                select(AccountMember)
+                .join(Account, Account.id == AccountMember.account_id)
+                .where(
+                    AccountMember.user_id == current_user.id,
+                    AccountMember.role == "member",
+                    AccountMember.status == "active",
+                    Account.type == "joint",
+                    Account.status == "active",
+                )
+            )
+            if existing_joint.scalar_one_or_none():
+                raise HTTPException(status_code=400, detail="You already have an active joint account")
+
+    new_member = AccountMember(
+        account_id=invite.account_id,
+        user_id=current_user.id,
+        role=invite.role,
+        status="active",
+    )
+    db.add(new_member)
+    invite.status = "accepted"
+    await db.commit()
+    await db.refresh(new_member)
+
+    return {"message": "Invite accepted", "account_id": str(invite.account_id), "role": invite.role}
+
+
 @router.delete("/{account_id}/members/{user_id}")
 async def remove_member(
     account_id: UUID,

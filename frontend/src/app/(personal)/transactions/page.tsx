@@ -24,7 +24,7 @@ const CATEGORIES = [
   "Debt Payment","Savings","Investment","Transfer","Other",
 ];
 
-const CURRENCIES = ["ZAR","USD","GBP","EUR","KES","NGN"];
+const CURRENCIES = ["EUR","USD","INR","AUD"];
 
 type TxForm = {
   type: TransactionType;
@@ -50,7 +50,7 @@ function TxModal({
     category:         tx?.category ?? "Other",
     description:      tx?.description ?? "",
     transaction_date: tx?.transaction_date ?? new Date().toISOString().slice(0, 10),
-    currency:         tx?.currency ?? "ZAR",
+    currency:         tx?.currency ?? "USD",
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -194,7 +194,7 @@ export default function TransactionsPage() {
     income: transactions.filter((t) => t.type === "income").reduce((s, t) => s + t.amount, 0),
     expense: transactions.filter((t) => t.type === "expense").reduce((s, t) => s + t.amount, 0),
   };
-  const currency = transactions[0]?.currency ?? "ZAR";
+  const currency = transactions[0]?.currency ?? "USD";
 
   if (loading) return (
     <div className="flex items-center justify-center h-64">

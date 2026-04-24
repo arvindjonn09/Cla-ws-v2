@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 FRANKFURTER_BASE = settings.EXCHANGE_RATE_API_URL
 
 
-async def fetch_rates_for_currencies(currencies: list[str], base: str = "ZAR") -> dict[str, float]:
+async def fetch_rates_for_currencies(currencies: list[str], base: str = "USD") -> dict[str, float]:
     """Fetch live rates from frankfurter.app."""
     if not currencies:
         return {}
@@ -89,13 +89,12 @@ async def daily_rate_job(db: AsyncSession) -> None:
     currencies = [row[0] for row in currencies_result.fetchall()]
 
     # default currencies to always track
-    default = ["USD", "EUR", "GBP", "INR"]
+    default = ["EUR", "USD", "INR", "AUD"]
     all_currencies = list(set(currencies + default))
 
-    # fetch against ZAR as base (configurable)
-    rates = await fetch_rates_for_currencies(all_currencies, base="ZAR")
+    rates = await fetch_rates_for_currencies(all_currencies, base="USD")
     if rates:
-        await store_exchange_rates(db, rates, base="ZAR")
+        await store_exchange_rates(db, rates, base="USD")
         logger.info("Exchange rates updated: %d pairs", len(rates))
 
         # update investment base_currency_value

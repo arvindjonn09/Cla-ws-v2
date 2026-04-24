@@ -1,7 +1,9 @@
 from uuid import UUID
 from datetime import datetime, date
 from typing import Optional, Literal
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
+
+ALLOWED_CURRENCIES = {"EUR", "USD", "INR", "AUD"}
 
 
 class GoalCreate(BaseModel):
@@ -12,7 +14,14 @@ class GoalCreate(BaseModel):
     ]
     target_amount: float
     current_amount: float = 0
-    currency: str = "ZAR"
+    currency: str = "USD"
+
+    @field_validator("currency")
+    @classmethod
+    def validate_currency(cls, v: str) -> str:
+        if v.upper() not in ALLOWED_CURRENCIES:
+            raise ValueError(f"Currency must be one of {sorted(ALLOWED_CURRENCIES)}")
+        return v.upper()
     target_date: Optional[date] = None
     priority: int = 1
 

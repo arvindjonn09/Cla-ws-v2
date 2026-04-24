@@ -14,9 +14,11 @@ set -euo pipefail
 APP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BACKEND_DIR="$APP_DIR/backend"
 FRONTEND_DIR="$APP_DIR/frontend"
-BACKEND_PORT="${BACKEND_PORT:-8100}"
-FRONTEND_PORT="${FRONTEND_PORT:-3100}"
+BACKEND_PORT="8100"
+FRONTEND_PORT="3100"
 HOST="${HOST:-0.0.0.0}"
+PUBLIC_URL="${FRONTEND_URL:-https://finfreak.shivomsangha.com}"
+CLOUDFLARE_TARGET_PORT="${CLOUDFLARE_TARGET_PORT:-$FRONTEND_PORT}"
 LOG_DIR="$APP_DIR/logs"
 PID_DIR="$APP_DIR/.pids"
 
@@ -97,6 +99,72 @@ wait_for_http() {
   return 1
 }
 
+cloudflared_cmdline() {
+  if command -v pgrep >/dev/null 2>&1; then
+    pgrep -af cloudflared 2>/dev/null || true
+  fi
+}
+
+verify_cloudflare_link() {
+  if [[ "$PUBLIC_URL" =~ ^https?://(localhost|127\.0\.0\.1)(:[0-9]+)?(/|$) ]]; then
+    echo "Cloudflare check skipped: FRONTEND_URL points to a local address ($PUBLIC_URL)."
+    return 0
+  fi
+
+  if ! command -v curl >/dev/null 2>&1; then
+    echo "Cloudflare check skipped: curl is not installed."
+    return 0
+  fi
+
+  local tunnel_cmd tunnel_config tunnel_target_match
+  tunnel_cmd="$(cloudflared_cmdline)"
+  tunnel_config=""
+
+  if [[ -n "$tunnel_cmd" ]]; then
+    echo "Cloudflare tunnel process detected:"
+    printf '%s\n' "$tunnel_cmd"
+  elif [[ -f "${HOME:-}/.cloudflared/config.yml" ]]; then
+    tunnel_config="${HOME:-}/.cloudflared/config.yml"
+  elif [[ -f "${HOME:-}/.cloudflared/config.yaml" ]]; then
+    tunnel_config="${HOME:-}/.cloudflared/config.yaml"
+  elif [[ -f "/etc/cloudflared/config.yml" ]]; then
+    tunnel_config="/etc/cloudflared/config.yml"
+  elif [[ -f "/etc/cloudflared/config.yaml" ]]; then
+    tunnel_config="/etc/cloudflared/config.yaml"
+  fi
+
+  if [[ -n "$tunnel_config" ]]; then
+    echo "Cloudflare tunnel config detected: $tunnel_config"
+    tunnel_target_match="$(grep -E "localhost:${CLOUDFLARE_TARGET_PORT}|127\.0\.0\.1:${CLOUDFLARE_TARGET_PORT}" "$tunnel_config" || true)"
+    if [[ -n "$tunnel_target_match" ]]; then
+      echo "Cloudflare tunnel target matches local port $CLOUDFLARE_TARGET_PORT."
+    else
+      echo "Warning: Cloudflare tunnel config does not reference local port $CLOUDFLARE_TARGET_PORT."
+      echo "Expected the tunnel to point at http://localhost:$CLOUDFLARE_TARGET_PORT or http://127.0.0.1:$CLOUDFLARE_TARGET_PORT."
+    fi
+  else
+    echo "Warning: no cloudflared process or config file was found."
+    echo "If Cloudflare is meant to front this app, make sure the tunnel points to port $CLOUDFLARE_TARGET_PORT."
+  fi
+
+  local headers
+  headers="$(curl -fsSI --max-time 15 "$PUBLIC_URL" 2>/dev/null || true)"
+  if [[ -z "$headers" ]]; then
+    echo "Cloudflare check failed: could not reach $PUBLIC_URL."
+    return 1
+  fi
+
+  if grep -qiE '^(server: cloudflare|cf-ray:|cf-cache-status:)' <<<"$headers"; then
+    echo "Cloudflare edge response detected for $PUBLIC_URL."
+  else
+    echo "Warning: $PUBLIC_URL responded, but Cloudflare headers were not obvious."
+    echo "Response headers:"
+    printf '%s\n' "$headers"
+  fi
+
+  return 0
+}
+
 echo "Restarting Financial Command Center..."
 stop_port "frontend" "$FRONTEND_PORT"
 stop_port "backend" "$BACKEND_PORT"
@@ -146,11 +214,14 @@ echo $! > "$PID_DIR/frontend.pid"
 
 wait_for_http "backend" "http://localhost:$BACKEND_PORT/api/health"
 wait_for_http "frontend" "http://localhost:$FRONTEND_PORT/login"
+verify_cloudflare_link || true
 
 echo
 echo "Financial Command Center is running:"
 echo "  Frontend: http://localhost:$FRONTEND_PORT"
 echo "  Backend:  http://localhost:$BACKEND_PORT/api/health"
+echo "  Public:   $PUBLIC_URL"
+echo "  Cloudflare target port: $CLOUDFLARE_TARGET_PORT"
 echo
 echo "Logs:"
 echo "  $LOG_DIR/frontend.log"

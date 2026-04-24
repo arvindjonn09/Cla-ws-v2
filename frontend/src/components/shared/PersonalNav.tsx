@@ -17,7 +17,6 @@ const links = [
   { href: "/bills",           icon: "🧾", label: "Bills"         },
   { href: "/transactions",    icon: "📋", label: "Transactions"  },
   { href: "/forecast",        icon: "🔮", label: "Forecast"      },
-  { href: "/scenarios",       icon: "🧪", label: "Scenarios"     },
   { href: "/growth",          icon: "🌱", label: "Growth"        },
   { href: "/journal",         icon: "📓", label: "Journal"       },
   { href: "/settings",        icon: "⚙",  label: "Settings"      },

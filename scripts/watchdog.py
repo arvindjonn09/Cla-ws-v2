@@ -12,7 +12,7 @@ import socket
 import urllib.request
 import urllib.error
 
-HEALTH_URL = os.getenv("HEALTH_URL", "http://localhost:8000/api/health")
+HEALTH_URL = os.getenv("HEALTH_URL", "http://localhost:8100/api/health")
 INTERVAL = int(os.getenv("WATCHDOG_INTERVAL", "30"))
 WATCHDOG_USEC = os.getenv("WATCHDOG_USEC")  # Set by systemd
 

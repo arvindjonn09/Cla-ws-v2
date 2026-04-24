@@ -70,6 +70,7 @@ export default function OnboardingPage() {
   const router = useRouter();
   const [stepIdx, setStepIdx] = useState(0);
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
 
   const [situation, setSituation] = useState("");
   const [incomeType, setIncomeType] = useState("");
@@ -81,6 +82,7 @@ export default function OnboardingPage() {
 
   async function finish() {
     setSaving(true);
+    setSaveError("");
     try {
       const accountId = getAccountId();
       if (accountId) {
@@ -95,9 +97,11 @@ export default function OnboardingPage() {
         const role = localStorage.getItem("role") ?? "member";
         saveAccountMeta(accountId, accountType, role, true);
       }
-    } catch { /* continue anyway */ }
-    finally { setSaving(false); }
-    router.replace("/dashboard");
+      router.replace("/dashboard");
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : "Failed to save — please try again");
+      setSaving(false);
+    }
   }
 
   function next() {
@@ -224,14 +228,21 @@ export default function OnboardingPage() {
                 Continue
               </button>
             ) : (
-              <button
-                type="button"
-                onClick={finish}
-                disabled={saving}
-                className="w-full rounded-xl bg-blue-600 py-3 font-semibold text-white hover:bg-blue-500 disabled:opacity-50 transition-colors"
-              >
-                {saving ? "Setting up…" : "Enter Command Center"}
-              </button>
+              <>
+                {saveError && (
+                  <p className="rounded-lg bg-red-500/10 border border-red-500/20 px-3 py-2 text-sm text-red-300 text-center">
+                    {saveError}
+                  </p>
+                )}
+                <button
+                  type="button"
+                  onClick={finish}
+                  disabled={saving}
+                  className="w-full rounded-xl bg-blue-600 py-3 font-semibold text-white hover:bg-blue-500 disabled:opacity-50 transition-colors"
+                >
+                  {saving ? "Setting up…" : "Enter Command Center"}
+                </button>
+              </>
             )}
           </div>
         </div>

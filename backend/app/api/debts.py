@@ -8,11 +8,11 @@ from sqlalchemy import select, and_
 
 from app.core.database import get_db
 from app.models.debt import Debt, DebtPayment
-from app.models.account import AccountMember, UserProfile
+from app.models.account import Account, AccountMember, UserProfile
 from app.schemas.debt import (
     DebtCreate, DebtUpdate, DebtOut,
     DebtPaymentCreate, DebtPaymentOut,
-    FreedomDateResponse, ExtraPaymentSimulation,
+    DebtShareToJointOut, FreedomDateResponse, ExtraPaymentSimulation,
 )
 from app.api.deps import get_current_user, get_account_member, require_full_member
 from app.models.user import User
@@ -32,10 +32,76 @@ async def _get_debt_or_404(db: AsyncSession, account_id: UUID, debt_id: UUID) ->
     return debt
 
 
+MIRRORED_FIELDS = (
+    "name",
+    "debt_type",
+    "payment_type",
+    "original_balance",
+    "current_balance",
+    "minimum_payment",
+    "actual_payment",
+    "payment_frequency",
+    "payment_day",
+    "has_interest",
+    "interest_rate",
+    "months_remaining",
+    "status",
+    "cleared_at",
+    "currency",
+    "is_shared",
+)
+
+
+def _copy_debt_fields(source: Debt, target: Debt) -> None:
+    for field in MIRRORED_FIELDS:
+        setattr(target, field, getattr(source, field))
+
+
+async def _sync_source_debt(db: AsyncSession, joint_debt: Debt) -> None:
+    if not joint_debt.shared_from_debt_id:
+        return
+    result = await db.execute(select(Debt).where(Debt.id == joint_debt.shared_from_debt_id))
+    source = result.scalar_one_or_none()
+    if source:
+        _copy_debt_fields(joint_debt, source)
+        source.is_locked = True
+        source.shared_to_account_id = joint_debt.account_id
+        source.shared_to_debt_id = joint_debt.id
+
+
+def _ensure_not_locked_source(debt: Debt) -> None:
+    if debt.is_locked and debt.shared_to_debt_id:
+        raise HTTPException(
+            status_code=400,
+            detail="This debt is locked because it is shared to a joint account. Edit it from Shared Debts.",
+        )
+
+
+async def _get_user_joint_account(db: AsyncSession, user_id: UUID) -> Account:
+    result = await db.execute(
+        select(Account)
+        .join(AccountMember, AccountMember.account_id == Account.id)
+        .where(
+            and_(
+                AccountMember.user_id == user_id,
+                AccountMember.role == "member",
+                AccountMember.status == "active",
+                Account.type == "joint",
+                Account.status == "active",
+            )
+        )
+        .limit(1)
+    )
+    account = result.scalar_one_or_none()
+    if not account:
+        raise HTTPException(status_code=400, detail="You do not have an active joint account to share this debt into")
+    return account
+
+
 @router.get("", response_model=list[DebtOut])
 async def list_debts(
     account_id: UUID,
-    member: Annotated[AccountMember, Depends(get_account_member)],
+    member: Annotated[AccountMember, Depends(require_full_member)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
     result = await db.execute(select(Debt).where(Debt.account_id == account_id))
@@ -55,6 +121,56 @@ async def create_debt(
     await db.commit()
     await db.refresh(debt)
     return debt
+
+
+@router.post("/{debt_id}/share-to-joint", response_model=DebtShareToJointOut)
+async def share_debt_to_joint(
+    account_id: UUID,
+    debt_id: UUID,
+    current_user: Annotated[User, Depends(get_current_user)],
+    member: Annotated[AccountMember, Depends(require_full_member)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    source = await _get_debt_or_404(db, account_id, debt_id)
+    account_result = await db.execute(select(Account).where(Account.id == account_id))
+    source_account = account_result.scalar_one_or_none()
+    if not source_account or source_account.type != "personal":
+        raise HTTPException(status_code=400, detail="Only personal account debts can be shared into a joint account")
+    if source.added_by and source.added_by != current_user.id:
+        raise HTTPException(status_code=403, detail="Only the debt owner can share this debt")
+    if source.shared_to_debt_id and source.shared_to_account_id:
+        return DebtShareToJointOut(
+            message="Debt is already shared to your joint account.",
+            source_debt_id=source.id,
+            joint_account_id=source.shared_to_account_id,
+            joint_debt_id=source.shared_to_debt_id,
+        )
+
+    joint_account = await _get_user_joint_account(db, current_user.id)
+    joint_debt = Debt(
+        account_id=joint_account.id,
+        added_by=current_user.id,
+        shared_from_debt_id=source.id,
+    )
+    _copy_debt_fields(source, joint_debt)
+    joint_debt.is_shared = True
+    joint_debt.is_locked = False
+    db.add(joint_debt)
+    await db.flush()
+
+    source.is_shared = True
+    source.is_locked = True
+    source.shared_to_account_id = joint_account.id
+    source.shared_to_debt_id = joint_debt.id
+    await db.commit()
+    await db.refresh(joint_debt)
+
+    return DebtShareToJointOut(
+        message="Debt shared to your joint account.",
+        source_debt_id=source.id,
+        joint_account_id=joint_account.id,
+        joint_debt_id=joint_debt.id,
+    )
 
 
 @router.get("/freedom-date", response_model=FreedomDateResponse)
@@ -93,7 +209,7 @@ async def freedom_date(
 async def get_debt(
     account_id: UUID,
     debt_id: UUID,
-    member: Annotated[AccountMember, Depends(get_account_member)],
+    member: Annotated[AccountMember, Depends(require_full_member)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
     return await _get_debt_or_404(db, account_id, debt_id)
@@ -108,6 +224,7 @@ async def update_debt(
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
     debt = await _get_debt_or_404(db, account_id, debt_id)
+    _ensure_not_locked_source(debt)
     for field, value in body.model_dump(exclude_unset=True).items():
         setattr(debt, field, value)
 
@@ -116,6 +233,7 @@ async def update_debt(
         debt.cleared_at = datetime.now(timezone.utc)
         debt.current_balance = 0
 
+    await _sync_source_debt(db, debt)
     await db.commit()
     await db.refresh(debt)
     return debt
@@ -129,6 +247,14 @@ async def delete_debt(
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
     debt = await _get_debt_or_404(db, account_id, debt_id)
+    _ensure_not_locked_source(debt)
+    if debt.shared_from_debt_id:
+        source_result = await db.execute(select(Debt).where(Debt.id == debt.shared_from_debt_id))
+        source = source_result.scalar_one_or_none()
+        if source:
+            source.is_locked = False
+            source.shared_to_account_id = None
+            source.shared_to_debt_id = None
     await db.delete(debt)
     await db.commit()
 
@@ -143,6 +269,7 @@ async def log_payment(
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
     debt = await _get_debt_or_404(db, account_id, debt_id)
+    _ensure_not_locked_source(debt)
     payment = DebtPayment(
         debt_id=debt_id,
         account_id=account_id,
@@ -161,6 +288,7 @@ async def log_payment(
         debt.status = "cleared"
         debt.cleared_at = datetime.now(timezone.utc)
 
+    await _sync_source_debt(db, debt)
     await db.commit()
     await db.refresh(payment)
     return payment

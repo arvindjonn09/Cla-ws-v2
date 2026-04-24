@@ -78,7 +78,7 @@ def verification_email(full_name: str, verify_url: str) -> tuple[str, str]:
         <p>Welcome to Financial Command Center. Click the button below to verify your email
         address and start your journey to financial freedom.</p>
         <a href="{verify_url}" class="btn">Verify Email Address</a>
-        <p>This link expires in 15 minutes. If you did not create an account, ignore this email.</p>
+        <p>This link expires in 1 hour. If you did not create an account, ignore this email.</p>
         """,
     )
     return subject, html
@@ -147,6 +147,42 @@ def payment_warning_email(
     return subject, html
 
 
+def debt_payment_reminder_email(
+    full_name: str,
+    debt_name: str,
+    amount: str,
+    due_date: str,
+    days_label: str,
+    balance_remaining: str,
+    currency: str,
+) -> tuple[str, str]:
+    subject = f"Payment reminder — {debt_name} due {days_label}"
+    urgency_color = "#ef4444" if "today" in days_label.lower() or "overdue" in days_label.lower() else "#f59e0b" if "tomorrow" in days_label.lower() or "3 day" in days_label.lower() else "#3b82f6"
+    html = _base_template(
+        f"Payment coming up — {debt_name}",
+        f"""
+        <p>Hi {full_name},</p>
+        <p>This is a reminder that your <strong>{debt_name}</strong> payment is due <strong>{days_label}</strong>.</p>
+        <table style="width:100%;border-collapse:collapse;margin:20px 0;background:#0f172a;border-radius:8px;overflow:hidden;">
+          <tr>
+            <td style="padding:12px 16px;color:#94a3b8;font-size:13px;">Payment amount</td>
+            <td style="padding:12px 16px;color:#f1f5f9;font-size:15px;font-weight:700;text-align:right;">{amount}</td>
+          </tr>
+          <tr style="border-top:1px solid #1e293b;">
+            <td style="padding:12px 16px;color:#94a3b8;font-size:13px;">Due date</td>
+            <td style="padding:12px 16px;color:{urgency_color};font-size:15px;font-weight:700;text-align:right;">{due_date}</td>
+          </tr>
+          <tr style="border-top:1px solid #1e293b;">
+            <td style="padding:12px 16px;color:#94a3b8;font-size:13px;">Balance remaining</td>
+            <td style="padding:12px 16px;color:#94a3b8;font-size:14px;text-align:right;">{balance_remaining} ({currency})</td>
+          </tr>
+        </table>
+        <p>Making this payment on time keeps your Freedom Date on track. Every payment counts.</p>
+        """,
+    )
+    return subject, html
+
+
 def joint_invite_email(invited_email: str, inviter_name: str, invite_url: str) -> tuple[str, str]:
     subject = f"{inviter_name} invited you to Financial Command Center"
     html = _base_template(
@@ -156,6 +192,21 @@ def joint_invite_email(invited_email: str, inviter_name: str, invite_url: str) -
         <p>Together you will track your journey to financial freedom.</p>
         <a href="{invite_url}" class="btn">Accept Invitation</a>
         <p>This invitation expires in 7 days.</p>
+        """,
+    )
+    return subject, html
+
+
+def investment_secure_code_email(full_name: str, investment_name: str, code: str) -> tuple[str, str]:
+    subject = "Your investment details verification code"
+    html = _base_template(
+        "Verify secure investment access",
+        f"""
+        <p>Hi {full_name},</p>
+        <p>Your verification code for <strong>{investment_name}</strong> is:</p>
+        <p style="font-size:28px;letter-spacing:6px;color:#f1f5f9;font-weight:700;margin:24px 0;">{code}</p>
+        <p>This code expires in 10 minutes and can be used once.</p>
+        <p>If you did not request this, ignore this email and review your account activity.</p>
         """,
     )
     return subject, html

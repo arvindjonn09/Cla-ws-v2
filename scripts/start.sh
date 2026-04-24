@@ -12,7 +12,7 @@ set -euo pipefail
 APP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BACKEND_DIR="$APP_DIR/backend"
 VENV_DIR="$BACKEND_DIR/.venv"
-PORT="${PORT:-8100}"
+PORT="8100"
 HOST="${HOST:-0.0.0.0}"
 ACTION="${1:-start}"
 

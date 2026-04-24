@@ -27,8 +27,12 @@ class Debt(Base):
     months_remaining: Mapped[int | None] = mapped_column(Integer, nullable=True)
     status: Mapped[str] = mapped_column(String, default="active")
     cleared_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    currency: Mapped[str] = mapped_column(String, nullable=False, default="ZAR")
+    currency: Mapped[str] = mapped_column(String, nullable=False, default="USD")
     is_shared: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_locked: Mapped[bool] = mapped_column(Boolean, default=False)
+    shared_from_debt_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("debts.id"), nullable=True)
+    shared_to_account_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("accounts.id"), nullable=True)
+    shared_to_debt_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("debts.id"), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 

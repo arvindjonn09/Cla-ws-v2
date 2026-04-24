@@ -67,7 +67,7 @@ export default function BudgetPage() {
   const expenses = transactions.filter((t) => t.type === "expense");
   const income = transactions.filter((t) => t.type === "income").reduce((s, t) => s + t.amount, 0);
   const totalSpent = expenses.reduce((s, t) => s + t.amount, 0);
-  const currency = transactions[0]?.currency ?? "ZAR";
+  const currency = transactions[0]?.currency ?? "USD";
 
   const byCategory: Record<string, number> = {};
   for (const tx of expenses) {

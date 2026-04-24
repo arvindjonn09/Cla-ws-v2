@@ -14,18 +14,16 @@ const links = [
   { href: "/contributions",     icon: "📊", label: "Contributions"   },
   { href: "/shared-budget",     icon: "💰", label: "Budget"          },
   { href: "/boundaries",        icon: "🗂",  label: "Boundaries"      },
-  { href: "/what-if",           icon: "🧪", label: "What-If"         },
   { href: "/shared-forecast",   icon: "🔮", label: "Forecast"        },
   { href: "/shared-goals",      icon: "🎯", label: "Goals"           },
   { href: "/shared-growth",     icon: "🌱", label: "Growth"          },
   { href: "/shared-investments",icon: "📈", label: "Investments"     },
   { href: "/sacrifice-log",     icon: "✊", label: "Sacrifice Log"   },
-  { href: "/conflict",          icon: "🕊",  label: "Check-in"        },
   { href: "/safe-space",        icon: "💬", label: "Safe Space"      },
   { href: "/planning-session",  icon: "📅", label: "Planning"        },
   { href: "/members",           icon: "👥", label: "Members"         },
   { href: "/notifications",     icon: "🔔", label: "Notifications"   },
-  { href: "/settings",          icon: "⚙",  label: "Settings"        },
+  { href: "/joint-settings",    icon: "⚙",  label: "Settings"        },
 ];
 
 const mobileLinks = [

@@ -18,7 +18,7 @@ router = APIRouter(prefix="/api/accounts/{account_id}/goals", tags=["goals"])
 @router.get("", response_model=list[GoalOut])
 async def list_goals(
     account_id: UUID,
-    member: Annotated[AccountMember, Depends(get_account_member)],
+    member: Annotated[AccountMember, Depends(require_full_member)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
     result = await db.execute(select(Goal).where(Goal.account_id == account_id).order_by(Goal.priority))

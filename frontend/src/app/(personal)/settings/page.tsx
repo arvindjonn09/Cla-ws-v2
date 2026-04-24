@@ -20,13 +20,23 @@ const MOTIVATION_STYLES = [
   { value: "disciplined",       label: "Disciplined" },
   { value: "motivation_driven", label: "Motivation-driven" },
 ];
+const BASE_CURRENCIES = [
+  { value: "USD", label: "USD — United States Dollar" },
+  { value: "AUD", label: "AUD — Australian Dollar" },
+  { value: "CAD", label: "CAD — Canadian Dollar" },
+  { value: "INR", label: "INR — Indian Rupee" },
+  { value: "EUR", label: "EUR — Euro" },
+];
 
 export default function SettingsPage() {
   const router = useRouter();
   const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [baseCurrency, setBaseCurrency] = useState("USD");
+  const [originalBaseCurrency, setOriginalBaseCurrency] = useState("USD");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [baseCurrencyChanged, setBaseCurrencyChanged] = useState(false);
   const [error, setError] = useState("");
 
   // password change
@@ -42,7 +52,17 @@ export default function SettingsPage() {
 
   useEffect(() => {
     if (!accountId) return;
-    accountApi.getProfile(accountId).then(setProfile).catch(() => null).finally(() => setLoading(false));
+    Promise.all([
+      accountApi.getProfile(accountId).catch(() => null),
+      accountApi.getAccount(accountId).catch(() => null),
+    ]).then(([prof, acct]) => {
+      if (prof) setProfile(prof);
+      if (acct) {
+        const bc = acct.base_currency ?? "USD";
+        setBaseCurrency(bc);
+        setOriginalBaseCurrency(bc);
+      }
+    }).finally(() => setLoading(false));
   }, [accountId]);
 
   async function saveProfile(e: React.FormEvent) {
@@ -51,13 +71,21 @@ export default function SettingsPage() {
     setSaving(true);
     setError("");
     try {
-      await accountApi.updateProfile(accountId, {
-        income_type:       profile.income_type as never,
-        debt_method:       profile.debt_method as never,
-        motivation_style:  profile.motivation_style as never,
-        local_currency:    profile.local_currency as never,
-        country:           profile.country as never,
-      });
+      await Promise.all([
+        accountApi.updateProfile(accountId, {
+          income_type:       profile.income_type as never,
+          debt_method:       profile.debt_method as never,
+          motivation_style:  profile.motivation_style as never,
+          local_currency:    profile.local_currency as never,
+          country:           profile.country as never,
+        }),
+        accountApi.update(accountId, { base_currency: baseCurrency }),
+      ]);
+      if (baseCurrency !== originalBaseCurrency) {
+        setBaseCurrencyChanged(true);
+        setOriginalBaseCurrency(baseCurrency);
+        setTimeout(() => setBaseCurrencyChanged(false), 3000);
+      }
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
     } catch (err) {
@@ -159,7 +187,7 @@ export default function SettingsPage() {
               <input
                 type="text"
                 maxLength={3}
-                value={profile.local_currency ?? "ZAR"}
+                value={profile.local_currency ?? "USD"}
                 onChange={(e) => setProfile({ ...profile, local_currency: e.target.value.toUpperCase() })}
                 className="w-full rounded-lg border border-slate-600 bg-slate-900 px-3 py-2 text-sm text-white outline-none focus:border-blue-500"
               />
@@ -176,8 +204,21 @@ export default function SettingsPage() {
             </div>
           </div>
 
+          <div>
+            <label className="block text-xs text-slate-400 mb-1">Base currency</label>
+            <p className="text-xs text-slate-500 mb-1.5">All debts, assets and investments are converted into this currency for totals</p>
+            <select
+              value={baseCurrency}
+              onChange={(e) => setBaseCurrency(e.target.value)}
+              className="w-full rounded-lg border border-slate-600 bg-slate-900 px-3 py-2 text-sm text-white outline-none focus:border-blue-500"
+            >
+              {BASE_CURRENCIES.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+          </div>
+
           {error && <p className="rounded-lg bg-red-500/10 border border-red-500/20 px-3 py-2 text-sm text-red-300">{error}</p>}
-          {saved && <p className="rounded-lg bg-green-500/10 border border-green-500/20 px-3 py-2 text-sm text-green-400">Saved!</p>}
+          {baseCurrencyChanged && <p className="rounded-lg bg-blue-500/10 border border-blue-500/20 px-3 py-2 text-sm text-blue-300">Your base currency has been changed to {baseCurrency}</p>}
+          {saved && !baseCurrencyChanged && <p className="rounded-lg bg-green-500/10 border border-green-500/20 px-3 py-2 text-sm text-green-400">Saved!</p>}
 
           <button type="submit" disabled={saving}
             className="w-full rounded-xl bg-blue-600 py-2.5 text-sm font-semibold text-white hover:bg-blue-500 disabled:opacity-50 transition-colors">

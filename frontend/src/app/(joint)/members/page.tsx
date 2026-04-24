@@ -15,8 +15,11 @@ export default function MembersPage() {
   const accountId = typeof window !== "undefined" ? getAccountId() : null;
 
   useEffect(() => {
-    if (!accountId) return;
-    setLoading(false);
+    if (!accountId) { setLoading(false); return; }
+    accountApi.listMembers(accountId)
+      .then(setMembers)
+      .catch(() => null)
+      .finally(() => setLoading(false));
   }, [accountId]);
 
   async function invite(e: React.FormEvent) {

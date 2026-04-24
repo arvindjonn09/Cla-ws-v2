@@ -13,7 +13,7 @@ class DebtSnapshot:
     current_balance: float
     monthly_payment: float
     interest_rate: float  # annual %
-    currency: str = "ZAR"
+    currency: str = "USD"
 
     @property
     def monthly_rate(self) -> float:

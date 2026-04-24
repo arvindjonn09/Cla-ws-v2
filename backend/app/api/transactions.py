@@ -19,7 +19,7 @@ router = APIRouter(prefix="/api/accounts/{account_id}/transactions", tags=["tran
 @router.get("", response_model=list[TransactionOut])
 async def list_transactions(
     account_id: UUID,
-    member: Annotated[AccountMember, Depends(get_account_member)],
+    member: Annotated[AccountMember, Depends(require_full_member)],
     db: Annotated[AsyncSession, Depends(get_db)],
     category: Optional[str] = Query(None),
     type: Optional[str] = Query(None),

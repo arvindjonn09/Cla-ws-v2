@@ -2,11 +2,17 @@
 import Link from "next/link";
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
-import { authApi } from "@/lib/api";
+import { accountApi, authApi } from "@/lib/api";
 import { saveTokens, saveAccountMeta } from "@/lib/utils";
 
 function parseJwt(token: string): Record<string, unknown> | null {
   try { return JSON.parse(atob(token.split(".")[1])); } catch { return null; }
+}
+
+async function getOnboardingComplete(accountId: string | null): Promise<boolean> {
+  if (!accountId) return false;
+  const profile = await accountApi.getProfile(accountId);
+  return profile.onboarding_complete;
 }
 
 export default function LoginPage() {
@@ -15,6 +21,12 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  // Read ?redirect= param so invite flow can return after login
+  const searchParams = typeof window !== "undefined"
+    ? new URLSearchParams(window.location.search)
+    : null;
+  const redirectTo = searchParams?.get("redirect") ?? null;
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -30,10 +42,14 @@ export default function LoginPage() {
       const accountType = (payload?.account_type as string) ?? "personal";
       const role = (payload?.role as string) ?? "member";
 
-      if (accountId) saveAccountMeta(accountId, accountType, role, false);
+      const onboardingComplete = await getOnboardingComplete(accountId);
+      if (accountId) saveAccountMeta(accountId, accountType, role, onboardingComplete);
 
-      const onboarded = localStorage.getItem("onboarding_complete");
-      router.replace(onboarded === "true" ? "/dashboard" : "/onboarding");
+      // If there was a pending invite or redirect target, go there
+      if (redirectTo) { router.replace(redirectTo); return; }
+      const pendingInvite = localStorage.getItem("pending_invite");
+      if (pendingInvite) { localStorage.removeItem("pending_invite"); router.replace(`/invite?token=${pendingInvite}`); return; }
+      router.replace(onboardingComplete ? "/dashboard" : "/onboarding");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Login failed");
     } finally {

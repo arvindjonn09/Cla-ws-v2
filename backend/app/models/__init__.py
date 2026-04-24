@@ -3,7 +3,13 @@ from app.models.account import Account, AccountMember, UserProfile, InviteToken
 from app.models.debt import Debt, DebtPayment
 from app.models.transaction import Transaction
 from app.models.goal import Goal
-from app.models.investment import Investment, ExchangeRate
+from app.models.investment import (
+    Investment,
+    InvestmentSecureAccessLog,
+    InvestmentSecureCode,
+    InvestmentSecureDetails,
+    ExchangeRate,
+)
 from app.models.notification import (
     Subscription,
     Bill,
@@ -24,7 +30,7 @@ __all__ = [
     "Debt", "DebtPayment",
     "Transaction",
     "Goal",
-    "Investment", "ExchangeRate",
+    "Investment", "InvestmentSecureAccessLog", "InvestmentSecureCode", "InvestmentSecureDetails", "ExchangeRate",
     "Subscription", "Bill", "SpendingBoundary", "PaymentWarning",
     "JointScenario", "SacrificeLog", "SafeSpaceMessage",
     "JournalEntry", "Milestone", "EmailLog", "NotificationPreference",

@@ -31,7 +31,7 @@ export default function WarRoomPage() {
 
   const activeDebts = debts.filter((d) => d.status === "active");
   const totalDebt = activeDebts.reduce((s, d) => s + d.current_balance, 0);
-  const currency = activeDebts[0]?.currency ?? "ZAR";
+  const currency = activeDebts[0]?.currency ?? "USD";
 
   const rec = freedomDate
     ? (freedomDate[freedomDate.recommended_method as keyof FreedomDateResponse] as { freedom_date: string | null; months_remaining: number })

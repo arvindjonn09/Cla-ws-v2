@@ -1,7 +1,7 @@
 // ── Formatting ─────────────────────────────────────────────────────────────────
 
-export function fmt(amount: number, currency = "ZAR"): string {
-  return new Intl.NumberFormat("en-ZA", {
+export function fmt(amount: number, currency = "USD"): string {
+  return new Intl.NumberFormat("en-US", {
     style: "currency",
     currency,
     minimumFractionDigits: 2,
@@ -9,7 +9,7 @@ export function fmt(amount: number, currency = "ZAR"): string {
   }).format(amount);
 }
 
-export function fmtCompact(amount: number, currency = "ZAR"): string {
+export function fmtCompact(amount: number, currency = "USD"): string {
   if (Math.abs(amount) >= 1_000_000)
     return `${currency} ${(amount / 1_000_000).toFixed(1)}M`;
   if (Math.abs(amount) >= 1_000)
@@ -19,7 +19,7 @@ export function fmtCompact(amount: number, currency = "ZAR"): string {
 
 export function fmtDate(iso: string | null | undefined): string {
   if (!iso) return "—";
-  return new Date(iso).toLocaleDateString("en-ZA", {
+  return new Date(iso).toLocaleDateString("en-GB", {
     day: "numeric",
     month: "short",
     year: "numeric",
@@ -28,7 +28,7 @@ export function fmtDate(iso: string | null | undefined): string {
 
 export function fmtDateShort(iso: string | null | undefined): string {
   if (!iso) return "—";
-  return new Date(iso).toLocaleDateString("en-ZA", {
+  return new Date(iso).toLocaleDateString("en-GB", {
     day: "numeric",
     month: "short",
   });
@@ -62,10 +62,13 @@ export function pct(current: number, target: number): number {
 export function saveTokens(access: string, refresh: string) {
   localStorage.setItem("access_token", access);
   localStorage.setItem("refresh_token", refresh);
+  // Set a cookie middleware can read (15-day lifetime matches refresh token)
+  document.cookie = "fcc_auth=1; path=/; max-age=1296000; SameSite=Strict";
 }
 
 export function clearTokens() {
   localStorage.clear();
+  document.cookie = "fcc_auth=; path=/; max-age=0; SameSite=Strict";
 }
 
 export function getAccountId(): string | null {
@@ -137,4 +140,22 @@ export function cn(...classes: (string | undefined | false | null)[]): string {
 // ── Today ──────────────────────────────────────────────────────────────────────
 export function today(): string {
   return new Date().toISOString().split("T")[0];
+}
+
+/**
+ * Convert an amount from one currency to another using stored USD-based rates.
+ * rates = { "INR": 84, "AUD": 1.56, ... } where each value is USD → that currency.
+ * Falls back to the original amount if either rate is missing.
+ */
+export function convertToBase(
+  amount: number,
+  fromCurrency: string,
+  toCurrency: string,
+  rates: Record<string, number>,
+): number {
+  if (fromCurrency === toCurrency) return amount;
+  const fromRate = rates[fromCurrency];
+  const toRate   = rates[toCurrency];
+  if (!fromRate || !toRate) return amount;
+  return (amount / fromRate) * toRate;
 }

@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import type { User, AuthState } from "@/types";
-import { authApi } from "@/lib/api";
+import { accountApi, authApi } from "@/lib/api";
 import { saveTokens, clearTokens, saveAccountMeta } from "@/lib/utils";
 
 function parseJwt(token: string): Record<string, unknown> | null {
@@ -11,6 +11,12 @@ function parseJwt(token: string): Record<string, unknown> | null {
   } catch {
     return null;
   }
+}
+
+async function getOnboardingComplete(accountId: string | null): Promise<boolean> {
+  if (!accountId) return false;
+  const profile = await accountApi.getProfile(accountId);
+  return profile.onboarding_complete;
 }
 
 export function useAuth() {
@@ -57,8 +63,10 @@ export function useAuth() {
       const accountType = (payload?.account_type as string) ?? "personal";
       const role = (payload?.role as string) ?? "member";
 
+      const onboardingComplete = await getOnboardingComplete(accountId);
+
       if (accountId) {
-        saveAccountMeta(accountId, accountType, role, false);
+        saveAccountMeta(accountId, accountType, role, onboardingComplete);
       }
 
       setState({
@@ -69,8 +77,7 @@ export function useAuth() {
         isLoading: false,
       });
 
-      const onboarded = localStorage.getItem("onboarding_complete");
-      if (onboarded === "true") {
+      if (onboardingComplete) {
         router.push("/dashboard");
       } else {
         router.push("/onboarding");

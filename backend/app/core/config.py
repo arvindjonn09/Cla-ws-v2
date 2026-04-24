@@ -22,6 +22,7 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
     REFRESH_TOKEN_EXPIRE_DAYS: int = 15
+    INVESTMENT_SECURE_DETAILS_KEY: str | None = None
 
     # Zoho SMTP
     ZOHO_SMTP_HOST: str = Field(default="smtp.zoho.com", validation_alias=AliasChoices("ZOHO_SMTP_HOST", "SMTP_HOST"))
@@ -45,14 +46,14 @@ class Settings(BaseSettings):
     EXCHANGE_RATE_FETCH_MINUTE_IST: int = 0
 
     # Frontend
-    FRONTEND_URL: str = "http://localhost:3000"
+    FRONTEND_URL: str = "https://finfreak.shivomsangha.com"
 
     # Admin
     ADMIN_EMAIL: str = "admin@yourdomain.com"
     ADMIN_PHONE: str = "+1234567890"
 
     # CORS
-    ALLOWED_ORIGINS: list[str] = ["http://localhost:3000", "http://127.0.0.1:3000"]
+    ALLOWED_ORIGINS: list[str] = ["http://localhost:3100", "http://127.0.0.1:3100"]
 
     class Config:
         env_file = ".env"

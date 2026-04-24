@@ -10,7 +10,7 @@ const DEBT_TYPE_LABELS: Record<DebtType, string> = {
   personal: "Personal", other: "Other",
 };
 const DEBT_TYPES: DebtType[] = ["credit_card","personal_loan","car_finance","student_loan","home_loan","store_account","personal","other"];
-const CURRENCIES = ["ZAR","USD","GBP","EUR"];
+const CURRENCIES = ["EUR","USD","INR","AUD"];
 
 type DebtForm = {
   name: string; debt_type: DebtType; current_balance: string; original_balance: string;
@@ -25,7 +25,7 @@ function DebtModal({ debt, onClose, onSave }: { debt: Debt|null; onClose: ()=>vo
     minimum_payment: String(debt?.minimum_payment??""), actual_payment: String(debt?.actual_payment??""),
     has_interest: debt?.has_interest??true, interest_rate: String(debt?.interest_rate??""),
     payment_frequency: (debt?.payment_frequency??"monthly") as "weekly"|"biweekly"|"monthly",
-    currency: debt?.currency??"ZAR",
+    currency: debt?.currency??"USD",
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -125,6 +125,7 @@ export default function SharedDebtsPage() {
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState(false);
   const [editDebt, setEditDebt] = useState<Debt|null>(null);
+  const [highlightDebtId, setHighlightDebtId] = useState<string | null>(null);
 
   const accountId = typeof window !== "undefined" ? getAccountId() : null;
 
@@ -139,7 +140,11 @@ export default function SharedDebtsPage() {
     setLoading(false);
   }, [accountId]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+    const params = new URLSearchParams(window.location.search);
+    setHighlightDebtId(params.get("debt"));
+  }, [load]);
 
   async function handleSave(form: DebtForm) {
     if (!accountId) return;
@@ -169,7 +174,7 @@ export default function SharedDebtsPage() {
     ? (freedomDate[freedomDate.recommended_method as keyof FreedomDateResponse] as { freedom_date: string | null; months_remaining: number })
     : null;
   const totalDebt = debts.reduce((s, d) => s + d.current_balance, 0);
-  const currency = debts[0]?.currency ?? "ZAR";
+  const currency = debts[0]?.currency ?? "USD";
 
   if (loading) return <div className="flex items-center justify-center h-64"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-400" /></div>;
 
@@ -211,11 +216,16 @@ export default function SharedDebtsPage() {
             const paid = d.original_balance > 0
               ? Math.min(100, Math.round(((d.original_balance - d.current_balance) / d.original_balance) * 100)) : 0;
             return (
-              <div key={d.id} className="rounded-xl border border-slate-700 bg-slate-800 p-4 space-y-3">
+              <div key={d.id} className={`rounded-xl border p-4 space-y-3 ${
+                highlightDebtId === d.id
+                  ? "border-purple-400 bg-purple-950/30 ring-1 ring-purple-400/50"
+                  : "border-slate-700 bg-slate-800"
+              }`}>
                 <div className="flex justify-between items-start">
                   <div>
                     <p className="text-sm font-semibold text-slate-100">{d.name}</p>
                     <p className="text-xs text-slate-500">{DEBT_TYPE_LABELS[d.debt_type]}</p>
+                    {d.shared_from_debt_id && <p className="mt-1 text-xs text-purple-300">Mirrored from personal debt</p>}
                   </div>
                   <p className="text-lg font-bold text-red-400">{fmt(d.current_balance, d.currency)}</p>
                 </div>

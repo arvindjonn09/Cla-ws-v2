@@ -96,6 +96,10 @@ export interface Debt {
   cleared_at: string | null;
   currency: string;
   is_shared: boolean;
+  is_locked: boolean;
+  shared_from_debt_id: string | null;
+  shared_to_account_id: string | null;
+  shared_to_debt_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -194,10 +198,20 @@ export interface Investment {
   current_value: number | null;
   base_currency_value: number | null;
   country: string | null;
+  visibility: "personal" | "shared";
+  has_secure_details: boolean;
   status: "active" | "sold";
   purchased_at: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface InvestmentSecureDetails {
+  account_email: string | null;
+  account_number: string | null;
+  login_id: string | null;
+  secure_notes: string | null;
+  revealed_until: string;
 }
 
 export interface PortfolioSummary {

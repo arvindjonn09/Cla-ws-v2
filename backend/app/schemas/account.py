@@ -1,12 +1,21 @@
 from uuid import UUID
 from datetime import datetime
 from typing import Optional, Literal
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, field_validator
+
+ALLOWED_CURRENCIES = {"EUR", "USD", "INR", "AUD"}
 
 
 class AccountCreate(BaseModel):
     name: Optional[str] = None
-    base_currency: str = "ZAR"
+    base_currency: str = "USD"
+
+    @field_validator("base_currency")
+    @classmethod
+    def validate_currency(cls, v: str) -> str:
+        if v.upper() not in ALLOWED_CURRENCIES:
+            raise ValueError(f"Currency must be one of {sorted(ALLOWED_CURRENCIES)}")
+        return v.upper()
 
 
 class AccountOut(BaseModel):

@@ -23,7 +23,7 @@ def compute_freedom_date(
             current_balance=float(d["current_balance"]),
             monthly_payment=float(d.get("actual_payment") or d.get("minimum_payment") or 0),
             interest_rate=float(d.get("interest_rate") or 0),
-            currency=d.get("currency", "ZAR"),
+            currency=d.get("currency", "USD"),
         )
         for d in debts
         if d.get("status") == "active" and float(d.get("current_balance", 0)) > 0

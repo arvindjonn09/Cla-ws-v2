@@ -14,7 +14,7 @@ const GOAL_TYPE_LABELS: Record<GoalType, string> = {
   custom:         "Custom",
 };
 const GOAL_TYPES: GoalType[] = ["emergency_fund","debt_payoff","savings","house_deposit","holiday","education","custom"];
-const CURRENCIES = ["ZAR","USD","GBP","EUR","KES","NGN"];
+const CURRENCIES = ["EUR","USD","INR","AUD"];
 
 type GoalForm = {
   name: string;
@@ -40,7 +40,7 @@ function GoalModal({
     goal_type:      goal?.goal_type ?? "savings",
     target_amount:  String(goal?.target_amount ?? ""),
     current_amount: String(goal?.current_amount ?? "0"),
-    currency:       goal?.currency ?? "ZAR",
+    currency:       goal?.currency ?? "USD",
     target_date:    goal?.target_date ?? "",
     priority:       String(goal?.priority ?? "1"),
   });

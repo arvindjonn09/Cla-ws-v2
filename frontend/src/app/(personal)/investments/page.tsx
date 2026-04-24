@@ -18,7 +18,7 @@ const ASSET_LABELS: Record<AssetType, string> = {
 const ASSET_TYPES: AssetType[] = [
   "stocks","bonds","mutual_funds","property","crypto","fixed_deposit","retirement","foreign_cash","other",
 ];
-const CURRENCIES = ["ZAR","USD","GBP","EUR","KES","NGN"];
+const CURRENCIES = ["EUR","USD","INR","AUD"];
 
 type InvForm = {
   name: string;
@@ -43,7 +43,7 @@ function InvModal({
   const [form, setForm] = useState<InvForm>({
     name:           inv?.name ?? "",
     asset_type:     inv?.asset_type ?? "stocks",
-    currency:       inv?.currency ?? "ZAR",
+    currency:       inv?.currency ?? "USD",
     current_value:  String(inv?.current_value ?? ""),
     purchase_price: String(inv?.purchase_price ?? ""),
     units:          String(inv?.units ?? ""),
@@ -215,6 +215,7 @@ export default function InvestmentsPage() {
       base_currency_value: parseFloat(form.current_value) || null,
       country:             form.country || null,
       purchased_at:        null,
+      visibility:           "personal" as const,
     };
     if (editInv) {
       await investmentApi.update(accountId, editInv.id, payload);

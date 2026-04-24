@@ -16,7 +16,7 @@ export default function SafeSpacePage() {
   const userId = userRaw ? JSON.parse(userRaw)?.id : null;
 
   const load = useCallback(async () => {
-    if (!accountId) return;
+    if (!accountId) { setLoading(false); return; }
     const data = await jointApi.getMessages(accountId).catch(() => [] as SafeSpaceMessage[]);
     setMessages(data.sort((a, b) => a.sent_at.localeCompare(b.sent_at)));
     setLoading(false);

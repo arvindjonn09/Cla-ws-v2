@@ -17,7 +17,7 @@ class Goal(Base):
     goal_type: Mapped[str] = mapped_column(String, nullable=False)
     target_amount: Mapped[float] = mapped_column(Numeric(15, 2), nullable=False)
     current_amount: Mapped[float] = mapped_column(Numeric(15, 2), default=0)
-    currency: Mapped[str] = mapped_column(String, nullable=False, default="ZAR")
+    currency: Mapped[str] = mapped_column(String, nullable=False, default="USD")
     target_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     status: Mapped[str] = mapped_column(String, default="active")
     priority: Mapped[int] = mapped_column(Integer, default=1)

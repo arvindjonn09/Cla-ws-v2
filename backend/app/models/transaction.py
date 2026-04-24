@@ -19,7 +19,7 @@ class Transaction(Base):
     subcategory: Mapped[str | None] = mapped_column(String, nullable=True)
     description: Mapped[str | None] = mapped_column(String, nullable=True)
     transaction_date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
-    currency: Mapped[str] = mapped_column(String, nullable=False, default="ZAR")
+    currency: Mapped[str] = mapped_column(String, nullable=False, default="USD")
     is_shared: Mapped[bool] = mapped_column(Boolean, default=False)
     split_type: Mapped[str | None] = mapped_column(String, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

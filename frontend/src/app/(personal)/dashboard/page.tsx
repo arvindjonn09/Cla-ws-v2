@@ -1,8 +1,8 @@
 "use client";
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { debtApi, goalApi, transactionApi } from "@/lib/api";
-import { getAccountId, fmt, fmtDate, daysUntil } from "@/lib/utils";
+import { debtApi, goalApi, accountApi, rateApi } from "@/lib/api";
+import { getAccountId, fmt, fmtDate, daysUntil, convertToBase } from "@/lib/utils";
 import type { Debt, FreedomDateResponse, Goal } from "@/types";
 
 // Stage labels matching the 9-stage journey
@@ -52,19 +52,34 @@ function FreedomDateBanner({ data }: { data: FreedomDateResponse | null }) {
   );
 }
 
-function DebtSummaryCard({ debts }: { debts: Debt[] }) {
+function DebtSummaryCard({
+  debts,
+  baseCurrency,
+  rates,
+}: {
+  debts: Debt[];
+  baseCurrency: string;
+  rates: Record<string, number>;
+}) {
   const active = debts.filter((d) => d.status === "active");
-  const totalBalance = active.reduce((s, d) => s + d.current_balance, 0);
-  const monthlyPayment = active.reduce((s, d) => s + (d.actual_payment ?? d.minimum_payment ?? 0), 0);
-  const currency = active[0]?.currency ?? "ZAR";
+  const isMultiCurrency = new Set(active.map((d) => d.currency)).size > 1;
+
+  const totalBalance = active.reduce(
+    (s, d) => s + convertToBase(d.current_balance, d.currency, baseCurrency, rates), 0,
+  );
+  const monthlyPayment = active.reduce(
+    (s, d) => s + convertToBase(d.actual_payment ?? d.minimum_payment ?? 0, d.currency, baseCurrency, rates), 0,
+  );
 
   return (
     <div className="rounded-xl border border-slate-700 bg-slate-800 p-5 space-y-3">
-      <p className="text-xs text-slate-500 uppercase tracking-widest">Total Debt</p>
-      <p className="text-2xl font-bold text-red-400">{fmt(totalBalance, currency)}</p>
+      <p className="text-xs text-slate-500 uppercase tracking-widest">
+        Total Debt{isMultiCurrency ? <span className="ml-1 text-slate-600">≈ {baseCurrency}</span> : ""}
+      </p>
+      <p className="text-2xl font-bold text-red-400">{isMultiCurrency ? "≈ " : ""}{fmt(totalBalance, baseCurrency)}</p>
       <div className="flex justify-between text-sm text-slate-400">
         <span>{active.length} active debt{active.length !== 1 ? "s" : ""}</span>
-        <span>{fmt(monthlyPayment, currency)}/mo</span>
+        <span>{isMultiCurrency ? "≈ " : ""}{fmt(monthlyPayment, baseCurrency)}/mo</span>
       </div>
       <Link href="/debts" className="text-sm text-blue-400 hover:text-blue-300">
         View debt center →
@@ -96,6 +111,8 @@ export default function DashboardPage() {
   const [debts, setDebts] = useState<Debt[]>([]);
   const [freedomDate, setFreedomDate] = useState<FreedomDateResponse | null>(null);
   const [goals, setGoals] = useState<Goal[]>([]);
+  const [baseCurrency, setBaseCurrency] = useState("USD");
+  const [rates, setRates] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
 
   const accountId = typeof window !== "undefined" ? getAccountId() : null;
@@ -108,10 +125,25 @@ export default function DashboardPage() {
       debtApi.list(accountId).catch(() => [] as Debt[]),
       debtApi.freedomDate(accountId).catch(() => null),
       goalApi.list(accountId).catch(() => [] as Goal[]),
-    ]).then(([d, fd, g]) => {
+      accountApi.getAccount(accountId).catch(() => null),
+    ]).then(async ([d, fd, g, acct]) => {
       setDebts(d);
       setFreedomDate(fd);
       setGoals(g.filter((x) => x.status === "active").slice(0, 3));
+
+      const bc = acct?.base_currency ?? "USD";
+      setBaseCurrency(bc);
+
+      const uniqueCurrencies = [...new Set([...d.map((debt) => debt.currency), bc])];
+      const ratePairs = await Promise.all(
+        uniqueCurrencies.map(async (c) => {
+          const r = await rateApi.getRate("USD", c).catch(() => ({ rate: null }));
+          return [c, r.rate] as [string, number | null];
+        }),
+      );
+      const ratesMap: Record<string, number> = {};
+      ratePairs.forEach(([c, r]) => { if (r !== null) ratesMap[c] = r; });
+      setRates(ratesMap);
     }).finally(() => setLoading(false));
   }, [accountId]);
 
@@ -174,7 +206,7 @@ export default function DashboardPage() {
               <Link href="/debts" className="text-blue-400 text-sm hover:text-blue-300">Add your first debt →</Link>
             </div>
           ) : (
-            <DebtSummaryCard debts={debts} />
+            <DebtSummaryCard debts={debts} baseCurrency={baseCurrency} rates={rates} />
           )}
         </div>
 

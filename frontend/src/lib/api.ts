@@ -1,4 +1,4 @@
-const BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8100";
+const BASE = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") || "";
 
 async function refreshAccessToken(): Promise<string | null> {
   const refresh = localStorage.getItem("refresh_token");
@@ -68,7 +68,7 @@ export const authApi = {
     api.post<{ message: string }>("/api/auth/signup", body),
 
   verifyEmail: (token: string) =>
-    api.post<{ message: string }>(`/api/auth/verify-email?token=${token}`, {}),
+    api.post<TokenResponse>(`/api/auth/verify-email?token=${token}`, {}),
 
   login: (body: { email: string; password: string }) =>
     api.post<TokenResponse>("/api/auth/login", body),
@@ -87,6 +87,9 @@ export const authApi = {
 
   changePassword: (body: { old_password: string; new_password: string }) =>
     api.post<{ message: string }>("/api/auth/change-password", body),
+
+  resendVerification: (email: string) =>
+    api.post<{ message: string }>("/api/auth/resend-verification", { email }),
 };
 
 // ── Account ────────────────────────────────────────────────────────────────────
@@ -94,6 +97,9 @@ import type { Account, AccountMember } from "@/types";
 
 export const accountApi = {
   getAccount: (id: string) => api.get<Account>(`/api/accounts/${id}`),
+
+  update: (id: string, body: { base_currency?: string }) =>
+    api.patch<Account>(`/api/accounts/${id}`, body),
 
   getProfile: (accountId: string) =>
     api.get<UserProfile>(`/api/accounts/${accountId}/profile`),
@@ -104,11 +110,17 @@ export const accountApi = {
   invite: (accountId: string, body: { email: string; role: "member" | "viewer" }) =>
     api.post<{ message: string }>(`/api/accounts/${accountId}/invite`, body),
 
+  listMembers: (accountId: string) =>
+    api.get<AccountMember[]>(`/api/accounts/${accountId}/members`),
+
   removeMember: (accountId: string, userId: string) =>
     api.delete<{ message: string }>(`/api/accounts/${accountId}/members/${userId}`),
 
   closeAccount: (accountId: string) =>
     api.post<{ message: string }>(`/api/accounts/${accountId}/close`, {}),
+
+  acceptInvite: (token: string) =>
+    api.post<{ message: string; account_id: string; role: string }>(`/api/accounts/accept-invite?token=${token}`, {}),
 };
 
 // ── Debts ──────────────────────────────────────────────────────────────────────
@@ -117,7 +129,7 @@ import type { Debt, DebtPayment, FreedomDateResponse } from "@/types";
 export const debtApi = {
   list: (accountId: string) => api.get<Debt[]>(`/api/accounts/${accountId}/debts`),
 
-  create: (accountId: string, body: Omit<Debt, "id" | "account_id" | "status" | "cleared_at" | "created_at" | "updated_at">) =>
+  create: (accountId: string, body: Omit<Debt, "id" | "account_id" | "status" | "cleared_at" | "created_at" | "updated_at" | "is_locked" | "shared_from_debt_id" | "shared_to_account_id" | "shared_to_debt_id">) =>
     api.post<Debt>(`/api/accounts/${accountId}/debts`, body),
 
   update: (accountId: string, debtId: string, body: Partial<Debt>) =>
@@ -125,6 +137,12 @@ export const debtApi = {
 
   delete: (accountId: string, debtId: string) =>
     api.delete<void>(`/api/accounts/${accountId}/debts/${debtId}`),
+
+  shareToJoint: (accountId: string, debtId: string) =>
+    api.post<{ message: string; source_debt_id: string; joint_account_id: string; joint_debt_id: string }>(
+      `/api/accounts/${accountId}/debts/${debtId}/share-to-joint`,
+      {}
+    ),
 
   freedomDate: (accountId: string) =>
     api.get<FreedomDateResponse>(`/api/accounts/${accountId}/debts/freedom-date`),
@@ -169,18 +187,33 @@ export const goalApi = {
 };
 
 // ── Investments ────────────────────────────────────────────────────────────────
-import type { Investment, PortfolioSummary } from "@/types";
+import type { Investment, InvestmentSecureDetails, PortfolioSummary } from "@/types";
+
+type InvestmentSecureDetailsInput = {
+  account_email?: string | null;
+  account_number?: string | null;
+  login_id?: string | null;
+  secure_notes?: string | null;
+};
+
+export type InvestmentPayload = Omit<Investment, "id" | "account_id" | "status" | "created_at" | "updated_at" | "has_secure_details"> & {
+  secure_details?: InvestmentSecureDetailsInput | null;
+};
 
 export const investmentApi = {
   list: (accountId: string) => api.get<Investment[]>(`/api/accounts/${accountId}/investments`),
-  create: (accountId: string, body: Omit<Investment, "id" | "account_id" | "status" | "created_at" | "updated_at">) =>
+  create: (accountId: string, body: InvestmentPayload) =>
     api.post<Investment>(`/api/accounts/${accountId}/investments`, body),
-  update: (accountId: string, invId: string, body: Partial<Investment>) =>
+  update: (accountId: string, invId: string, body: Partial<InvestmentPayload>) =>
     api.patch<Investment>(`/api/accounts/${accountId}/investments/${invId}`, body),
   delete: (accountId: string, invId: string) =>
     api.delete<void>(`/api/accounts/${accountId}/investments/${invId}`),
   portfolio: (accountId: string) =>
     api.get<PortfolioSummary>(`/api/accounts/${accountId}/investments/portfolio`),
+  requestSecureCode: (accountId: string, invId: string) =>
+    api.post<{ message: string }>(`/api/accounts/${accountId}/investments/${invId}/secure/request-code`, {}),
+  verifySecureCode: (accountId: string, invId: string, code: string) =>
+    api.post<InvestmentSecureDetails>(`/api/accounts/${accountId}/investments/${invId}/secure/verify`, { code }),
 };
 
 // ── Joint ──────────────────────────────────────────────────────────────────────

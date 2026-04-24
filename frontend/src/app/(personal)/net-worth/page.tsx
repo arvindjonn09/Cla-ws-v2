@@ -30,7 +30,7 @@ export default function NetWorthPage() {
   const totalDebt = activeDebts.reduce((s, d) => s + d.current_balance, 0);
   const totalAssets = activeInvs.reduce((s, i) => s + (i.current_value ?? 0), 0);
   const netWorth = totalAssets - totalDebt;
-  const currency = activeDebts[0]?.currency ?? activeInvs[0]?.currency ?? "ZAR";
+  const currency = activeDebts[0]?.currency ?? activeInvs[0]?.currency ?? "USD";
 
   if (loading) return (
     <div className="flex items-center justify-center h-64">

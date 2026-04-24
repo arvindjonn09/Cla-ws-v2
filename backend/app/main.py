@@ -13,6 +13,7 @@ from app.api import auth, accounts, debts, transactions, goals, investments
 from app.api.joint import boundaries, scenarios, payments, members
 from app.services.exchange_rate import daily_rate_job
 from app.services.email_service import process_email_queue
+from app.services.debt_reminder import daily_debt_reminder_job
 from app.services.watchdog import get_health
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -31,6 +32,11 @@ async def _email_queue_task():
         await process_email_queue(db)
 
 
+async def _debt_reminder_task():
+    async with AsyncSessionLocal() as db:
+        await daily_debt_reminder_job(db)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Daily exchange rate fetch at 09:00 IST
@@ -40,12 +46,19 @@ async def lifespan(app: FastAPI):
         id="exchange_rate_daily",
         replace_existing=True,
     )
-    # Email queue processor every 60 seconds
+    # Email queue processor every 15 seconds
     scheduler.add_job(
         _email_queue_task,
         "interval",
-        seconds=60,
+        seconds=15,
         id="email_queue",
+        replace_existing=True,
+    )
+    # Daily debt payment reminders at 08:00 IST
+    scheduler.add_job(
+        _debt_reminder_task,
+        CronTrigger(hour=8, minute=0, timezone="Asia/Kolkata"),
+        id="debt_reminders_daily",
         replace_existing=True,
     )
     scheduler.start()
@@ -109,5 +122,5 @@ async def exchange_rate_status():
     from app.services.exchange_rate import get_latest_rate
     from app.core.database import AsyncSessionLocal
     async with AsyncSessionLocal() as db:
-        usd = await get_latest_rate(db, "ZAR", "USD")
-    return {"usd_zar": usd, "scheduler_running": scheduler.running}
+        eur = await get_latest_rate(db, "USD", "EUR")
+    return {"usd_eur": eur, "scheduler_running": scheduler.running}
