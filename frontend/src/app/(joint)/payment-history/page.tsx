@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState, useCallback } from "react";
 import { debtApi, transactionApi } from "@/lib/api";
-import { getAccountId, fmt, fmtDate } from "@/lib/utils";
+import { getJointAccountId, fmt, fmtDate } from "@/lib/utils";
 import type { Debt, Transaction } from "@/types";
 
 export default function PaymentHistoryPage() {
@@ -10,7 +10,7 @@ export default function PaymentHistoryPage() {
   const [loading, setLoading] = useState(true);
   const [filterDebt, setFilterDebt] = useState<string>("");
 
-  const accountId = typeof window !== "undefined" ? getAccountId() : null;
+  const accountId = typeof window !== "undefined" ? getJointAccountId() : null;
 
   const load = useCallback(async () => {
     if (!accountId) { setLoading(false); return; }

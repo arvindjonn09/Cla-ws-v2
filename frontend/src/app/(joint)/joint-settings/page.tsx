@@ -2,7 +2,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { accountApi } from "@/lib/api";
-import { getAccountId, clearTokens } from "@/lib/utils";
+import { getJointAccountId, clearTokens } from "@/lib/utils";
 import type { Account } from "@/types";
 import Link from "next/link";
 
@@ -17,8 +17,8 @@ export default function JointSettingsPage() {
   const [closeConfirm, setCloseConfirm] = useState(false);
   const [closeMsg, setCloseMsg] = useState("");
 
-  const accountId = typeof window !== "undefined" ? getAccountId() : null;
-  const role = typeof window !== "undefined" ? localStorage.getItem("role") : null;
+  const accountId = typeof window !== "undefined" ? getJointAccountId() : null;
+  const role = typeof window !== "undefined" ? localStorage.getItem("joint_role") ?? localStorage.getItem("role") : null;
   const userRaw = typeof window !== "undefined" ? localStorage.getItem("user") : null;
   const user = userRaw ? JSON.parse(userRaw) : null;
 

@@ -127,7 +127,7 @@ async def _log_secure_access(
 async def list_investments(
     account_id: UUID,
     current_user: Annotated[User, Depends(get_current_user)],
-    member: Annotated[AccountMember, Depends(require_full_member)],
+    member: Annotated[AccountMember, Depends(get_account_member)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
     result = await db.execute(
@@ -190,7 +190,7 @@ async def delete_investment(
 async def portfolio_summary(
     account_id: UUID,
     current_user: Annotated[User, Depends(get_current_user)],
-    member: Annotated[AccountMember, Depends(require_full_member)],
+    member: Annotated[AccountMember, Depends(get_account_member)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
     result = await db.execute(

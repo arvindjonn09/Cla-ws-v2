@@ -1,36 +1,65 @@
 "use client";
 import { useEffect, useState, useCallback } from "react";
-import { debtApi, investmentApi } from "@/lib/api";
-import { getAccountId, fmt } from "@/lib/utils";
+import { debtApi, investmentApi, accountApi, rateApi } from "@/lib/api";
+import { getPersonalAccountId, fmt, convertToBase } from "@/lib/utils";
 import type { Debt, Investment } from "@/types";
 
 export default function NetWorthPage() {
   const [debts, setDebts] = useState<Debt[]>([]);
   const [investments, setInvestments] = useState<Investment[]>([]);
+  const [baseCurrency, setBaseCurrency] = useState("USD");
+  const [rates, setRates] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
 
-  const accountId = typeof window !== "undefined" ? getAccountId() : null;
+  const accountId = typeof window !== "undefined" ? getPersonalAccountId() : null;
 
   const load = useCallback(async () => {
     if (!accountId) return;
-    const [d, i] = await Promise.all([
+    const [d, i, acct] = await Promise.all([
       debtApi.list(accountId).catch(() => [] as Debt[]),
       investmentApi.list(accountId).catch(() => [] as Investment[]),
+      accountApi.getAccount(accountId).catch(() => null),
     ]);
     setDebts(d);
     setInvestments(i);
+
+    const bc = acct?.base_currency ?? "USD";
+    setBaseCurrency(bc);
+
+    const uniqueCurrencies = [
+      ...new Set([
+        ...d.map((x) => x.currency),
+        ...i.map((x) => x.currency),
+        bc,
+      ]),
+    ];
+    const ratePairs = await Promise.all(
+      uniqueCurrencies.map(async (c) => {
+        const r = await rateApi.getRate("USD", c).catch(() => ({ rate: null }));
+        return [c, r.rate] as [string, number | null];
+      }),
+    );
+    const ratesMap: Record<string, number> = {};
+    ratePairs.forEach(([c, r]) => { if (r !== null) ratesMap[c] = r; });
+    setRates(ratesMap);
+
     setLoading(false);
   }, [accountId]);
 
   useEffect(() => { load(); }, [load]);
 
   const activeDebts = debts.filter((d) => d.status === "active");
-  const activeInvs = investments.filter((i) => i.status === "active");
+  const activeInvs  = investments.filter((i) => i.status === "active");
 
-  const totalDebt = activeDebts.reduce((s, d) => s + d.current_balance, 0);
-  const totalAssets = activeInvs.reduce((s, i) => s + (i.current_value ?? 0), 0);
-  const netWorth = totalAssets - totalDebt;
-  const currency = activeDebts[0]?.currency ?? activeInvs[0]?.currency ?? "USD";
+  const isMultiCurrency = new Set([
+    ...activeDebts.map((d) => d.currency),
+    ...activeInvs.map((i) => i.currency),
+  ]).size > 1;
+
+  const totalDebt   = activeDebts.reduce((s, d) => s + convertToBase(d.current_balance, d.currency, baseCurrency, rates), 0);
+  const totalAssets = activeInvs.reduce((s, i)  => s + convertToBase(i.current_value ?? 0, i.currency, baseCurrency, rates), 0);
+  const netWorth    = totalAssets - totalDebt;
+  const currency    = baseCurrency;
 
   if (loading) return (
     <div className="flex items-center justify-center h-64">
@@ -51,16 +80,17 @@ export default function NetWorthPage() {
       }`}>
         <p className="text-sm text-slate-400 uppercase tracking-widest">Net Worth</p>
         <p className={`text-5xl font-bold ${netWorth >= 0 ? "text-green-400" : "text-red-400"}`}>
-          {fmt(Math.abs(netWorth), currency)}
+          {isMultiCurrency ? "≈ " : ""}{fmt(Math.abs(netWorth), currency)}
         </p>
         {netWorth < 0 && <p className="text-sm text-red-400">negative</p>}
+        {isMultiCurrency && <p className="text-xs text-slate-500">converted to {baseCurrency} using live exchange rates</p>}
       </div>
 
       {/* Breakdown */}
       <div className="grid sm:grid-cols-2 gap-4">
         <div className="rounded-xl border border-green-500/20 bg-slate-800 p-5 space-y-3">
           <h2 className="text-sm font-semibold text-green-400 uppercase tracking-wide">Assets</h2>
-          <p className="text-2xl font-bold text-green-400">{fmt(totalAssets, currency)}</p>
+          <p className="text-2xl font-bold text-green-400">{isMultiCurrency ? "≈ " : ""}{fmt(totalAssets, currency)}</p>
           {activeInvs.length === 0 ? (
             <p className="text-xs text-slate-500">No investments logged yet</p>
           ) : (
@@ -77,7 +107,7 @@ export default function NetWorthPage() {
 
         <div className="rounded-xl border border-red-500/20 bg-slate-800 p-5 space-y-3">
           <h2 className="text-sm font-semibold text-red-400 uppercase tracking-wide">Liabilities</h2>
-          <p className="text-2xl font-bold text-red-400">{fmt(totalDebt, currency)}</p>
+          <p className="text-2xl font-bold text-red-400">{isMultiCurrency ? "≈ " : ""}{fmt(totalDebt, currency)}</p>
           {activeDebts.length === 0 ? (
             <p className="text-xs text-slate-500">No active debts</p>
           ) : (

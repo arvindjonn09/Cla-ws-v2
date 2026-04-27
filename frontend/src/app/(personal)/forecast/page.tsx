@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState, useCallback } from "react";
 import { transactionApi, debtApi } from "@/lib/api";
-import { getAccountId, fmt, fmtDate } from "@/lib/utils";
+import { getPersonalAccountId, fmt, fmtDate } from "@/lib/utils";
 import type { Transaction, FreedomDateResponse } from "@/types";
 import Link from "next/link";
 
@@ -19,7 +19,7 @@ export default function ForecastPage() {
   const [freedomDate, setFreedomDate] = useState<FreedomDateResponse | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const accountId = typeof window !== "undefined" ? getAccountId() : null;
+  const accountId = typeof window !== "undefined" ? getPersonalAccountId() : null;
 
   const load = useCallback(async () => {
     if (!accountId) { setLoading(false); return; }

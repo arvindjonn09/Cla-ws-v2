@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(.venv/bin/alembic history *)",
+      "Bash(.venv/bin/alembic current *)",
+      "Bash(python3 -c ' *)"
+    ]
+  }
+}

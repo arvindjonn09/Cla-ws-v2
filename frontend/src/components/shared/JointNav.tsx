@@ -11,14 +11,11 @@ const links = [
   { href: "/shared-debts",      icon: "⛓",  label: "Shared Debts"    },
   { href: "/payment-warnings",  icon: "⚠",  label: "Payments"        },
   { href: "/payment-history",   icon: "📋", label: "History"         },
-  { href: "/contributions",     icon: "📊", label: "Contributions"   },
-  { href: "/shared-budget",     icon: "💰", label: "Budget"          },
-  { href: "/boundaries",        icon: "🗂",  label: "Boundaries"      },
+  { href: "/insights",          icon: "📊", label: "Insights"        },
   { href: "/shared-forecast",   icon: "🔮", label: "Forecast"        },
   { href: "/shared-goals",      icon: "🎯", label: "Goals"           },
   { href: "/shared-growth",     icon: "🌱", label: "Growth"          },
   { href: "/shared-investments",icon: "📈", label: "Investments"     },
-  { href: "/sacrifice-log",     icon: "✊", label: "Sacrifice Log"   },
   { href: "/safe-space",        icon: "💬", label: "Safe Space"      },
   { href: "/planning-session",  icon: "📅", label: "Planning"        },
   { href: "/members",           icon: "👥", label: "Members"         },
@@ -29,9 +26,9 @@ const links = [
 const mobileLinks = [
   { href: "/war-room",         icon: "⚔",  label: "War Room"  },
   { href: "/shared-debts",     icon: "⛓",  label: "Debts"     },
+  { href: "/insights",         icon: "📊", label: "Insights"  },
   { href: "/payment-warnings", icon: "⚠",  label: "Payments"  },
   { href: "/safe-space",       icon: "💬", label: "Space"     },
-  { href: "/members",          icon: "👥", label: "More"      },
 ];
 
 export default function JointNav() {
@@ -55,7 +52,7 @@ export default function JointNav() {
               href={href}
               className={cn(
                 "flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors",
-                pathname === href
+                pathname === href || pathname.startsWith(href + "/")
                   ? "bg-purple-500/20 text-purple-400 font-medium"
                   : "text-slate-400 hover:text-slate-100 hover:bg-slate-800"
               )}

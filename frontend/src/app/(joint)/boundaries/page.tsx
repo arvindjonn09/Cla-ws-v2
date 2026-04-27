@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState, useCallback } from "react";
 import { jointApi } from "@/lib/api";
-import { getAccountId } from "@/lib/utils";
+import { getJointAccountId } from "@/lib/utils";
 import type { SpendingBoundary } from "@/types";
 
 const CLASSIFICATIONS = ["shared","personal","grey"] as const;
@@ -136,7 +136,7 @@ export default function BoundariesPage() {
   const [modal, setModal] = useState(false);
   const [editB, setEditB] = useState<SpendingBoundary|null>(null);
 
-  const accountId = typeof window !== "undefined" ? getAccountId() : null;
+  const accountId = typeof window !== "undefined" ? getJointAccountId() : null;
 
   const load = useCallback(async () => {
     if (!accountId) return;

@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState, useCallback } from "react";
 import { jointApi } from "@/lib/api";
-import { getAccountId, fmtDate } from "@/lib/utils";
+import { getJointAccountId, fmtDate } from "@/lib/utils";
 import type { PaymentWarning } from "@/types";
 
 const WARNING_LABELS: Record<string, string> = {
@@ -28,7 +28,7 @@ export default function PaymentWarningsPage() {
   const [warnings, setWarnings] = useState<PaymentWarning[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const accountId = typeof window !== "undefined" ? getAccountId() : null;
+  const accountId = typeof window !== "undefined" ? getJointAccountId() : null;
 
   const load = useCallback(async () => {
     if (!accountId) return;

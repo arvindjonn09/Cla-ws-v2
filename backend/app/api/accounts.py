@@ -12,7 +12,7 @@ from app.models.user import User
 from app.models.account import Account, AccountMember, UserProfile, InviteToken
 from app.schemas.account import (
     AccountCreate, AccountOut, MemberOut, InviteCreate,
-    UserProfileCreate, UserProfileOut,
+    UserProfileCreate, UserProfileOut, AccountMembershipOut,
 )
 from app.api.deps import get_current_user, get_account_member, require_full_member
 from app.core.config import settings
@@ -75,6 +75,32 @@ async def create_joint_account(
     return account
 
 
+@router.get("/mine", response_model=list[AccountMembershipOut])
+async def list_my_accounts(
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    result = await db.execute(
+        select(AccountMember, Account)
+        .join(Account, Account.id == AccountMember.account_id)
+        .where(
+            AccountMember.user_id == current_user.id,
+            AccountMember.status == "active",
+            Account.status == "active",
+        )
+        .order_by(Account.type == "joint", AccountMember.joined_at)
+    )
+    return [
+        {
+            "account": account,
+            "role": membership.role,
+            "status": membership.status,
+            "joined_at": membership.joined_at,
+        }
+        for membership, account in result.all()
+    ]
+
+
 @router.get("/{account_id}", response_model=AccountOut)
 async def get_account(
     account_id: UUID,
@@ -121,6 +147,8 @@ async def invite_member(
     account = result.scalar_one_or_none()
     if not account:
         raise HTTPException(status_code=404, detail="Account not found")
+    if account.type != "joint":
+        raise HTTPException(status_code=400, detail="Invitations can only be sent for joint accounts")
 
     # Check viewer limit
     if body.role == "viewer":
@@ -163,12 +191,26 @@ async def list_members(
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
     result = await db.execute(
-        select(AccountMember).where(
+        select(AccountMember, User)
+        .join(User, User.id == AccountMember.user_id)
+        .where(
             AccountMember.account_id == account_id,
             AccountMember.status.in_(["active", "pending"]),
         )
+        .order_by(AccountMember.joined_at)
     )
-    return result.scalars().all()
+    return [
+        {
+            "id": membership.id,
+            "user_id": membership.user_id,
+            "email": user.email,
+            "full_name": user.full_name,
+            "role": membership.role,
+            "status": membership.status,
+            "joined_at": membership.joined_at,
+        }
+        for membership, user in result.all()
+    ]
 
 
 @router.post("/accept-invite")
@@ -185,6 +227,8 @@ async def accept_invite(
         raise HTTPException(status_code=400, detail="Invite token has expired")
     if invite.status != "pending":
         raise HTTPException(status_code=400, detail="Invite already used or cancelled")
+    if invite.email.lower() != current_user.email.lower():
+        raise HTTPException(status_code=403, detail="This invite was sent to a different email address")
 
     # Viewer rule: viewers can never become members (business rule)
     if invite.role == "member":
@@ -209,24 +253,27 @@ async def accept_invite(
     if existing.scalar_one_or_none():
         raise HTTPException(status_code=400, detail="You are already a member of this account")
 
+    # Verify the target account is a joint account
+    acc_result = await db.execute(select(Account).where(Account.id == invite.account_id))
+    account = acc_result.scalar_one_or_none()
+    if not account or account.type != "joint":
+        raise HTTPException(status_code=400, detail="This invite is for an account that is no longer valid")
+
     # Enforce one joint per user (business rule)
     if invite.role == "member":
-        acc_result = await db.execute(select(Account).where(Account.id == invite.account_id))
-        account = acc_result.scalar_one_or_none()
-        if account and account.type == "joint":
-            existing_joint = await db.execute(
-                select(AccountMember)
-                .join(Account, Account.id == AccountMember.account_id)
-                .where(
-                    AccountMember.user_id == current_user.id,
-                    AccountMember.role == "member",
-                    AccountMember.status == "active",
-                    Account.type == "joint",
-                    Account.status == "active",
-                )
+        existing_joint = await db.execute(
+            select(AccountMember)
+            .join(Account, Account.id == AccountMember.account_id)
+            .where(
+                AccountMember.user_id == current_user.id,
+                AccountMember.role == "member",
+                AccountMember.status == "active",
+                Account.type == "joint",
+                Account.status == "active",
             )
-            if existing_joint.scalar_one_or_none():
-                raise HTTPException(status_code=400, detail="You already have an active joint account")
+        )
+        if existing_joint.scalar_one_or_none():
+            raise HTTPException(status_code=400, detail="You already have an active joint account")
 
     new_member = AccountMember(
         account_id=invite.account_id,
@@ -235,6 +282,7 @@ async def accept_invite(
         status="active",
     )
     db.add(new_member)
+    db.add(UserProfile(user_id=current_user.id, account_id=invite.account_id))
     invite.status = "accepted"
     await db.commit()
     await db.refresh(new_member)
@@ -267,6 +315,7 @@ async def remove_member(
 @router.post("/{account_id}/close")
 async def close_account(
     account_id: UUID,
+    current_user: Annotated[User, Depends(get_current_user)],
     member: Annotated[AccountMember, Depends(require_full_member)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
@@ -276,12 +325,28 @@ async def close_account(
         raise HTTPException(status_code=404, detail="Account not found")
 
     if account.type == "joint":
-        # Both members must confirm — simplified: flag first confirmation
-        return {"message": "Close request submitted. Other member must also confirm."}
+        if account.close_requested_by is None:
+            # First member requests close
+            account.close_requested_by = current_user.id
+            await db.commit()
+            return {"message": "Close request submitted. The other member must also confirm to close the account.", "pending": True}
 
+        if account.close_requested_by == current_user.id:
+            # Same member calling again — cancel the request
+            account.close_requested_by = None
+            await db.commit()
+            return {"message": "Close request cancelled.", "pending": False}
+
+        # Second member confirms — close the account
+        account.status = "closed"
+        account.close_requested_by = None
+        await db.commit()
+        return {"message": "Joint account closed.", "pending": False}
+
+    # Personal account — close immediately
     account.status = "closed"
     await db.commit()
-    return {"message": "Account closed"}
+    return {"message": "Account closed.", "pending": False}
 
 
 # Profile endpoints

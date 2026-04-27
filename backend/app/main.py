@@ -10,6 +10,7 @@ from fastapi.responses import JSONResponse
 from app.core.config import settings
 from app.core.database import AsyncSessionLocal
 from app.api import auth, accounts, debts, transactions, goals, investments
+from app.api import import_pdf
 from app.api.joint import boundaries, scenarios, payments, members
 from app.services.exchange_rate import daily_rate_job
 from app.services.email_service import process_email_queue
@@ -90,6 +91,7 @@ app.include_router(debts.router)
 app.include_router(transactions.router)
 app.include_router(goals.router)
 app.include_router(investments.router)
+app.include_router(import_pdf.router)
 app.include_router(boundaries.router)
 app.include_router(scenarios.router)
 app.include_router(payments.router)

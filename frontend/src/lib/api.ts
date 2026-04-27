@@ -48,8 +48,20 @@ async function request<T>(
 
   if (res.status === 204) return undefined as T;
 
-  const json = await res.json();
-  if (!res.ok) throw new Error(json.detail || `Request failed: ${res.status}`);
+  const text = await res.text();
+  let json: unknown = null;
+  if (text) {
+    try {
+      json = JSON.parse(text);
+    } catch {
+      if (!res.ok) throw new Error(text || `Request failed: ${res.status}`);
+      throw new Error("Invalid JSON response from server");
+    }
+  }
+  if (!res.ok) {
+    const detail = json && typeof json === "object" && "detail" in json ? String(json.detail) : null;
+    throw new Error(detail || `Request failed: ${res.status}`);
+  }
   return json as T;
 }
 
@@ -93,12 +105,17 @@ export const authApi = {
 };
 
 // ── Account ────────────────────────────────────────────────────────────────────
-import type { Account, AccountMember } from "@/types";
+import type { Account, AccountMember, AccountMembership } from "@/types";
 
 export const accountApi = {
+  listMine: () => api.get<AccountMembership[]>("/api/accounts/mine"),
+
+  createJoint: (body: { name?: string; base_currency?: string } = {}) =>
+    api.post<Account>("/api/accounts/joint", body),
+
   getAccount: (id: string) => api.get<Account>(`/api/accounts/${id}`),
 
-  update: (id: string, body: { base_currency?: string }) =>
+  update: (id: string, body: { name?: string; base_currency?: string }) =>
     api.patch<Account>(`/api/accounts/${id}`, body),
 
   getProfile: (accountId: string) =>
@@ -117,7 +134,7 @@ export const accountApi = {
     api.delete<{ message: string }>(`/api/accounts/${accountId}/members/${userId}`),
 
   closeAccount: (accountId: string) =>
-    api.post<{ message: string }>(`/api/accounts/${accountId}/close`, {}),
+    api.post<{ message: string; pending: boolean }>(`/api/accounts/${accountId}/close`, {}),
 
   acceptInvite: (token: string) =>
     api.post<{ message: string; account_id: string; role: string }>(`/api/accounts/accept-invite?token=${token}`, {}),
@@ -151,7 +168,14 @@ export const debtApi = {
     api.post<DebtPayment>(`/api/accounts/${accountId}/debts/${debtId}/payments`, body),
 
   simulate: (accountId: string, debtId: string, extra_monthly: number) =>
-    api.post<{ extra_monthly: number; new_freedom_date: string | null; months_saved: number; interest_saved: number }>(
+    api.post<{
+      extra_monthly: number;
+      current_monthly_payment: number;
+      new_monthly_payment: number;
+      new_freedom_date: string | null;
+      months_saved: number;
+      interest_saved: number;
+    }>(
       `/api/accounts/${accountId}/debts/${debtId}/simulate?extra_monthly=${extra_monthly}`,
       {}
     ),
@@ -244,10 +268,89 @@ export const jointApi = {
     api.post<{ message: string }>(`/api/accounts/${accountId}/safe-space`, { message }),
 };
 
+// ── PDF Import ────────────────────────────────────────────────────────────────
+
+export interface PreviewBill {
+  id: string;
+  name: string;
+  amount: number;
+  currency: string;
+  due_day: number;
+  category: string;
+  sample_dates: string[];
+}
+
+export interface PreviewTransaction {
+  id: string;
+  date: string;
+  description: string;
+  amount: number;
+  category: string;
+}
+
+export interface PreviewTransfer {
+  id: string;
+  date: string;
+  description: string;
+  amount: number;
+}
+
+export interface ImportPreviewResponse {
+  bills: PreviewBill[];
+  transactions: PreviewTransaction[];
+  transfers: PreviewTransfer[];
+  skipped_duplicates: number;
+  unreadable: boolean;
+}
+
+export interface BulkImportResponse {
+  saved: number;
+}
+
+async function uploadPdf(path: string, file: File): Promise<ImportPreviewResponse> {
+  const token = localStorage.getItem("access_token");
+  const formData = new FormData();
+  formData.append("file", file);
+  const headers: Record<string, string> = {};
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+
+  const res = await fetch(`${BASE}${path}`, { method: "POST", headers, body: formData });
+
+  if (res.status === 401) {
+    const newToken = await refreshAccessToken();
+    if (newToken) {
+      const headers2: Record<string, string> = { Authorization: `Bearer ${newToken}` };
+      const res2 = await fetch(`${BASE}${path}`, { method: "POST", headers: headers2, body: formData });
+      if (!res2.ok) throw new Error(`Upload failed: ${res2.status}`);
+      return res2.json();
+    }
+    if (typeof window !== "undefined") window.location.href = "/login";
+    throw new Error("Session expired");
+  }
+  if (!res.ok) {
+    const text = await res.text();
+    let detail: string | null = null;
+    try { detail = JSON.parse(text)?.detail; } catch { /* */ }
+    throw new Error(detail || `Upload failed: ${res.status}`);
+  }
+  return res.json();
+}
+
+export const importApi = {
+  parsePdf: (accountId: string, file: File) =>
+    uploadPdf(`/api/accounts/${accountId}/transactions/import-pdf`, file),
+
+  bulkSave: (accountId: string, transactions: { date: string; description: string; amount: number; category: string; currency: string; type?: string }[]) =>
+    api.post<BulkImportResponse>(`/api/accounts/${accountId}/transactions/import-bulk`, { transactions }),
+
+  learnRules: (corrections: { description: string; category: string }[]) =>
+    api.post<{ learned: number }>("/api/merchant-rules/learn", { corrections }),
+};
+
 // ── Exchange Rates ─────────────────────────────────────────────────────────────
 export const rateApi = {
   getRate: (from: string, to: string) =>
     api.get<{ rate: number | null; is_stale: boolean; fetched_at: string | null }>(`/api/exchange-rates/${from}/${to}`),
   status: () =>
-    api.get<{ usd_zar: { rate: number | null; is_stale: boolean } }>("/api/exchange-rates/status"),
+    api.get<{ usd_eur: { rate: number | null; is_stale: boolean; fetched_at: string | null }; scheduler_running: boolean }>("/api/exchange-rates/status"),
 };

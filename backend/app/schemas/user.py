@@ -44,6 +44,7 @@ class TokenResponse(BaseModel):
     refresh_token: str
     token_type: str = "bearer"
     user: UserOut
+    onboarding_complete: bool = False
 
 
 class PasswordResetRequest(BaseModel):

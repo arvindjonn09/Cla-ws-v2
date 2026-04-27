@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState, useCallback } from "react";
 import { transactionApi, debtApi, goalApi } from "@/lib/api";
-import { getAccountId, fmt } from "@/lib/utils";
+import { getPersonalAccountId, fmt } from "@/lib/utils";
 import type { Transaction, Debt, Goal } from "@/types";
 
 export default function AnnualReviewPage() {
@@ -10,7 +10,7 @@ export default function AnnualReviewPage() {
   const [goals, setGoals] = useState<Goal[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const accountId = typeof window !== "undefined" ? getAccountId() : null;
+  const accountId = typeof window !== "undefined" ? getPersonalAccountId() : null;
   const currentYear = new Date().getFullYear();
 
   const load = useCallback(async () => {

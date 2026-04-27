@@ -101,7 +101,7 @@ async def _get_user_joint_account(db: AsyncSession, user_id: UUID) -> Account:
 @router.get("", response_model=list[DebtOut])
 async def list_debts(
     account_id: UUID,
-    member: Annotated[AccountMember, Depends(require_full_member)],
+    member: Annotated[AccountMember, Depends(get_account_member)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
     result = await db.execute(select(Debt).where(Debt.account_id == account_id))
@@ -209,7 +209,7 @@ async def freedom_date(
 async def get_debt(
     account_id: UUID,
     debt_id: UUID,
-    member: Annotated[AccountMember, Depends(require_full_member)],
+    member: Annotated[AccountMember, Depends(get_account_member)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
     return await _get_debt_or_404(db, account_id, debt_id)
@@ -322,4 +322,4 @@ async def simulate_payment(
     profile = profile_result.scalar_one_or_none()
     method = (profile.debt_method if profile else "snowball") or "snowball"
 
-    return simulate_extra_payment(snapshots, method, None, extra_monthly, date.today())
+    return simulate_extra_payment(snapshots, method, None, extra_monthly, date.today(), str(debt_id))

@@ -160,6 +160,7 @@ def simulate_extra_payment(
     current_freedom_date: Optional[date],
     extra_monthly: float,
     from_date: date,
+    selected_debt_id: str | None = None,
 ) -> dict:
     if method == "snowball":
         baseline = snowball_plan(debts, from_date, 0)
@@ -173,9 +174,13 @@ def simulate_extra_payment(
 
     months_saved = baseline.total_months - with_extra.total_months
     interest_saved = baseline.total_interest - with_extra.total_interest
+    selected = next((d for d in debts if d.id == selected_debt_id), None)
+    current_monthly_payment = selected.monthly_payment if selected else 0
 
     return {
         "extra_monthly": extra_monthly,
+        "current_monthly_payment": round(current_monthly_payment, 2),
+        "new_monthly_payment": round(current_monthly_payment + extra_monthly, 2),
         "new_freedom_date": with_extra.freedom_date,
         "months_saved": max(0, months_saved),
         "interest_saved": round(max(0, interest_saved), 2),

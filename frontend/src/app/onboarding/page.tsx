@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { accountApi } from "@/lib/api";
-import { getAccountId, saveAccountMeta } from "@/lib/utils";
+import { getPersonalAccountId, saveAccountMeta } from "@/lib/utils";
 
 type Step = "situation" | "income" | "debt_method" | "motivation" | "done";
 
@@ -84,7 +84,7 @@ export default function OnboardingPage() {
     setSaving(true);
     setSaveError("");
     try {
-      const accountId = getAccountId();
+      const accountId = getPersonalAccountId();
       if (accountId) {
         await accountApi.updateProfile(accountId, {
           financial_situation: situation as never,

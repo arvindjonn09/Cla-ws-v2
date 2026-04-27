@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState, useCallback } from "react";
 import { investmentApi } from "@/lib/api";
-import { getAccountId, fmt } from "@/lib/utils";
+import { getPersonalAccountId, fmt } from "@/lib/utils";
 import type { Investment, AssetType, PortfolioSummary } from "@/types";
 
 const ASSET_LABELS: Record<AssetType, string> = {
@@ -187,7 +187,7 @@ export default function InvestmentsPage() {
   const [modal, setModal] = useState(false);
   const [editInv, setEditInv] = useState<Investment | null>(null);
 
-  const accountId = typeof window !== "undefined" ? getAccountId() : null;
+  const accountId = typeof window !== "undefined" ? getPersonalAccountId() : null;
 
   const load = useCallback(async () => {
     if (!accountId) return;

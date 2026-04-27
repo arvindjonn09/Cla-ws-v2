@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState, useCallback } from "react";
 import { goalApi } from "@/lib/api";
-import { getAccountId, fmt, fmtDate, goalTypeLabel } from "@/lib/utils";
+import { getJointAccountId, fmt, fmtDate, goalTypeLabel } from "@/lib/utils";
 import type { Goal, GoalType } from "@/types";
 
 const GOAL_TYPES: GoalType[] = [
@@ -22,7 +22,7 @@ export default function SharedGoalsPage() {
   const [depositGoalId, setDepositGoalId] = useState<string | null>(null);
   const [depositAmt, setDepositAmt] = useState("");
 
-  const accountId = typeof window !== "undefined" ? getAccountId() : null;
+  const accountId = typeof window !== "undefined" ? getJointAccountId() : null;
 
   const load = useCallback(async () => {
     if (!accountId) { setLoading(false); return; }

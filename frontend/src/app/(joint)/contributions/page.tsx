@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState, useCallback } from "react";
 import { transactionApi, debtApi } from "@/lib/api";
-import { getAccountId, fmt } from "@/lib/utils";
+import { getJointAccountId, fmt } from "@/lib/utils";
 import type { Transaction, Debt } from "@/types";
 
 function getMonthKey(iso: string) { return iso.slice(0, 7); }
@@ -16,7 +16,7 @@ export default function ContributionsPage() {
   const [loading, setLoading] = useState(true);
   const [selectedMonth, setSelectedMonth] = useState<string>("");
 
-  const accountId = typeof window !== "undefined" ? getAccountId() : null;
+  const accountId = typeof window !== "undefined" ? getJointAccountId() : null;
   const userRaw = typeof window !== "undefined" ? localStorage.getItem("user") : null;
   const user = userRaw ? JSON.parse(userRaw) : null;
 

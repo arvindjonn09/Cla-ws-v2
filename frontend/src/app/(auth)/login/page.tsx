@@ -3,16 +3,10 @@ import Link from "next/link";
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import { accountApi, authApi } from "@/lib/api";
-import { saveTokens, saveAccountMeta } from "@/lib/utils";
+import { saveTokens, saveAccountMeta, saveAccountMemberships } from "@/lib/utils";
 
 function parseJwt(token: string): Record<string, unknown> | null {
   try { return JSON.parse(atob(token.split(".")[1])); } catch { return null; }
-}
-
-async function getOnboardingComplete(accountId: string | null): Promise<boolean> {
-  if (!accountId) return false;
-  const profile = await accountApi.getProfile(accountId);
-  return profile.onboarding_complete;
 }
 
 export default function LoginPage() {
@@ -41,9 +35,11 @@ export default function LoginPage() {
       const accountId = payload?.account_id as string | null;
       const accountType = (payload?.account_type as string) ?? "personal";
       const role = (payload?.role as string) ?? "member";
+      const onboardingComplete = data.onboarding_complete;
 
-      const onboardingComplete = await getOnboardingComplete(accountId);
       if (accountId) saveAccountMeta(accountId, accountType, role, onboardingComplete);
+      const memberships = await accountApi.listMine().catch(() => []);
+      saveAccountMemberships(memberships);
 
       // If there was a pending invite or redirect target, go there
       if (redirectTo) { router.replace(redirectTo); return; }

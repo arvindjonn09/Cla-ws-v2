@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { accountApi, authApi } from "@/lib/api";
-import { getAccountId, clearTokens } from "@/lib/utils";
+import { getPersonalAccountId, clearTokens } from "@/lib/utils";
 import type { UserProfile } from "@/types";
 
 const INCOME_TYPES = [
@@ -46,7 +46,7 @@ export default function SettingsPage() {
   const [pwSaving, setPwSaving] = useState(false);
   const [pwMsg, setPwMsg] = useState("");
 
-  const accountId = typeof window !== "undefined" ? getAccountId() : null;
+  const accountId = typeof window !== "undefined" ? getPersonalAccountId() : null;
   const userRaw = typeof window !== "undefined" ? localStorage.getItem("user") : null;
   const user = userRaw ? JSON.parse(userRaw) : null;
 

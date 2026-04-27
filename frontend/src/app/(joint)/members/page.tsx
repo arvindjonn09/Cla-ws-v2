@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { accountApi } from "@/lib/api";
-import { getAccountId } from "@/lib/utils";
+import { getJointAccountId } from "@/lib/utils";
 import type { AccountMember } from "@/types";
 
 export default function MembersPage() {
@@ -12,7 +12,7 @@ export default function MembersPage() {
   const [inviting, setInviting] = useState(false);
   const [msg, setMsg] = useState("");
 
-  const accountId = typeof window !== "undefined" ? getAccountId() : null;
+  const accountId = typeof window !== "undefined" ? getJointAccountId() : null;
 
   useEffect(() => {
     if (!accountId) { setLoading(false); return; }
@@ -25,10 +25,11 @@ export default function MembersPage() {
   async function invite(e: React.FormEvent) {
     e.preventDefault();
     if (!accountId) return;
+    const invitedEmail = email.trim();
     setInviting(true); setMsg("");
     try {
-      await accountApi.invite(accountId, { email, role });
-      setMsg(`Invite sent to ${email}`);
+      await accountApi.invite(accountId, { email: invitedEmail, role });
+      setMsg(`You successfully sent an invite to ${invitedEmail}`);
       setEmail("");
     } catch (err) {
       setMsg(err instanceof Error ? err.message : "Failed to invite");
@@ -87,9 +88,12 @@ export default function MembersPage() {
         <div className="rounded-xl border border-slate-700 bg-slate-800 overflow-hidden">
           {members.map((m, i) => (
             <div key={m.id} className={`flex items-center justify-between px-4 py-3 ${i !== 0 ? "border-t border-slate-700" : ""}`}>
-              <div>
-                <p className="text-sm text-slate-200 capitalize">{m.role}</p>
-                <p className="text-xs text-slate-500 capitalize">{m.status}</p>
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold text-slate-200">{m.full_name || m.email || "Unknown member"}</p>
+                {m.email && m.full_name && (
+                  <p className="truncate text-xs text-slate-500">{m.email}</p>
+                )}
+                <p className="mt-1 text-xs text-slate-500 capitalize">{m.role} · {m.status}</p>
               </div>
               {m.status === "active" && (
                 <button type="button" onClick={() => remove(m.user_id)}

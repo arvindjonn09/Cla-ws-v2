@@ -32,6 +32,17 @@ class AccountOut(BaseModel):
 class MemberOut(BaseModel):
     id: UUID
     user_id: UUID
+    email: Optional[EmailStr] = None
+    full_name: Optional[str] = None
+    role: str
+    status: str
+    joined_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class AccountMembershipOut(BaseModel):
+    account: AccountOut
     role: str
     status: str
     joined_at: datetime

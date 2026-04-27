@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState, useCallback } from "react";
 import { transactionApi, jointApi } from "@/lib/api";
-import { getAccountId, fmt } from "@/lib/utils";
+import { getJointAccountId, fmt } from "@/lib/utils";
 import type { Transaction, SpendingBoundary } from "@/types";
 import Link from "next/link";
 
@@ -16,7 +16,7 @@ export default function SharedBudgetPage() {
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
   });
 
-  const accountId = typeof window !== "undefined" ? getAccountId() : null;
+  const accountId = typeof window !== "undefined" ? getJointAccountId() : null;
 
   const load = useCallback(async () => {
     if (!accountId) { setLoading(false); return; }

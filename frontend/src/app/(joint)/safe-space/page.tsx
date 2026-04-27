@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState, useRef, useCallback } from "react";
 import { jointApi } from "@/lib/api";
-import { getAccountId } from "@/lib/utils";
+import { getJointAccountId } from "@/lib/utils";
 import type { SafeSpaceMessage } from "@/types";
 
 export default function SafeSpacePage() {
@@ -11,7 +11,7 @@ export default function SafeSpacePage() {
   const [sending, setSending] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  const accountId = typeof window !== "undefined" ? getAccountId() : null;
+  const accountId = typeof window !== "undefined" ? getJointAccountId() : null;
   const userRaw = typeof window !== "undefined" ? localStorage.getItem("user") : null;
   const userId = userRaw ? JSON.parse(userRaw)?.id : null;
 

@@ -3,7 +3,7 @@ import { useEffect, useState, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { accountApi } from "@/lib/api";
-import { getAccountId, saveAccountMeta } from "@/lib/utils";
+import { saveAccountMemberships, saveJointAccountMeta } from "@/lib/utils";
 
 function InviteContent() {
   const params = useSearchParams();
@@ -17,10 +17,9 @@ function InviteContent() {
   useEffect(() => {
     if (!token) { setStatus("error"); setMessage("No invite token found."); return; }
 
-    const accountId = typeof window !== "undefined" ? getAccountId() : null;
     const accessToken = typeof window !== "undefined" ? localStorage.getItem("access_token") : null;
 
-    if (!accessToken || !accountId) {
+    if (!accessToken) {
       // Store token so we can use it after login
       if (typeof window !== "undefined") localStorage.setItem("pending_invite", token);
       setStatus("needs_login");
@@ -31,8 +30,9 @@ function InviteContent() {
     accountApi.acceptInvite(token)
       .then((res) => {
         setRole(res.role);
-        // Update stored account metadata so user can switch to joint account
-        saveAccountMeta(res.account_id, "joint", res.role, true);
+        // Keep personal and joint account IDs separate so joint membership does not leak personal data.
+        saveJointAccountMeta(res.account_id, res.role, true);
+        accountApi.listMine().then(saveAccountMemberships).catch(() => {});
         setStatus("done");
       })
       .catch((err) => {

@@ -3,8 +3,8 @@
 import { useSearchParams, useRouter } from "next/navigation";
 import { Suspense, useEffect, useState, useRef } from "react";
 
-import { authApi } from "@/lib/api";
-import { saveTokens, saveAccountMeta } from "@/lib/utils";
+import { accountApi, authApi } from "@/lib/api";
+import { saveTokens, saveAccountMeta, saveAccountMemberships } from "@/lib/utils";
 
 function parseJwt(token: string): Record<string, unknown> | null {
   try { return JSON.parse(atob(token.split(".")[1])); } catch { return null; }
@@ -42,6 +42,8 @@ function VerifyContent() {
         const accountType = (payload?.account_type as string) ?? "personal";
         const role = (payload?.role as string) ?? "member";
         if (accountId) saveAccountMeta(accountId, accountType, role, false);
+        const memberships = await accountApi.listMine().catch(() => []);
+        saveAccountMemberships(memberships);
         setPhase("success");
       } catch (err) {
         const msg = err instanceof Error ? err.message : "";

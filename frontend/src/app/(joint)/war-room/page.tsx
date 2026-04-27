@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { debtApi, goalApi, jointApi } from "@/lib/api";
-import { getAccountId, fmt, fmtDate, daysUntil } from "@/lib/utils";
+import { getJointAccountId, fmt, fmtDate, daysUntil } from "@/lib/utils";
 import type { Debt, Goal, PaymentWarning, FreedomDateResponse } from "@/types";
 
 export default function WarRoomPage() {
@@ -12,7 +12,7 @@ export default function WarRoomPage() {
   const [freedomDate, setFreedomDate] = useState<FreedomDateResponse | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const accountId = typeof window !== "undefined" ? getAccountId() : null;
+  const accountId = typeof window !== "undefined" ? getJointAccountId() : null;
 
   useEffect(() => {
     if (!accountId) { setLoading(false); return; }

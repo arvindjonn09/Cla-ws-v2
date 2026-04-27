@@ -2,34 +2,79 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { accountApi } from "@/lib/api";
-import { getAccountId, clearTokens } from "@/lib/utils";
+import { getJointAccountId, clearJointAccountMeta } from "@/lib/utils";
 
 export default function ExitPage() {
   const [confirmed, setConfirmed] = useState(false);
   const [closing, setClosing] = useState(false);
   const [error, setError] = useState("");
+  const [pending, setPending] = useState(false);
+  const [message, setMessage] = useState("");
   const router = useRouter();
-  const accountId = typeof window !== "undefined" ? getAccountId() : null;
+  const accountId = typeof window !== "undefined" ? getJointAccountId() : null;
 
   async function closeAccount() {
     if (!accountId) return;
     setClosing(true); setError("");
     try {
-      await accountApi.closeAccount(accountId);
-      clearTokens();
-      localStorage.clear();
-      router.replace("/login");
+      const res = await accountApi.closeAccount(accountId);
+      if (res.pending) {
+        // First member — waiting for other member to confirm
+        setPending(true);
+        setMessage(res.message);
+        setClosing(false);
+      } else {
+        // Account actually closed — clear joint session and redirect
+        clearJointAccountMeta();
+        router.replace("/dashboard");
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to close account");
       setClosing(false);
     }
   }
 
+  async function cancelClose() {
+    if (!accountId) return;
+    setClosing(true); setError("");
+    try {
+      await accountApi.closeAccount(accountId);
+      setPending(false);
+      setMessage("");
+      setConfirmed(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to cancel");
+    } finally {
+      setClosing(false);
+    }
+  }
+
+  if (pending) {
+    return (
+      <div className="px-4 py-6 lg:px-8 max-w-2xl mx-auto space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-100">Exit Joint Account</h1>
+          <p className="text-slate-500 text-sm mt-0.5">Waiting for the other member</p>
+        </div>
+        <div className="rounded-xl border border-amber-500/30 bg-amber-950/20 p-6 space-y-3 text-center">
+          <p className="text-3xl">⏳</p>
+          <p className="text-amber-300 font-semibold">Close request submitted</p>
+          <p className="text-sm text-slate-400">{message}</p>
+        </div>
+        {error && <p className="text-sm text-red-400">{error}</p>}
+        <button type="button" onClick={cancelClose} disabled={closing}
+          className="w-full rounded-xl border border-slate-600 py-2.5 text-sm font-semibold text-slate-400 hover:border-slate-500 disabled:opacity-40 transition-colors">
+          {closing ? "Cancelling…" : "Cancel close request"}
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="px-4 py-6 lg:px-8 max-w-2xl mx-auto space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-slate-100">Exit Joint Account</h1>
-        <p className="text-slate-500 text-sm mt-0.5">This is permanent and cannot be undone</p>
+        <p className="text-slate-500 text-sm mt-0.5">Both members must confirm to close</p>
       </div>
 
       <div className="rounded-xl border border-red-500/30 bg-red-950/20 p-5 space-y-4">
@@ -47,13 +92,13 @@ export default function ExitPage() {
         <label className="flex items-start gap-3">
           <input type="checkbox" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} className="mt-0.5 rounded" />
           <span className="text-sm text-slate-300">
-            I understand this is permanent and I want to close the joint account.
+            I understand this is permanent and both members must confirm before the account closes.
           </span>
         </label>
         {error && <p className="text-sm text-red-400">{error}</p>}
         <button type="button" onClick={closeAccount} disabled={!confirmed || closing}
           className="w-full rounded-xl border border-red-500/40 py-2.5 text-sm font-semibold text-red-400 hover:bg-red-500/10 disabled:opacity-40 transition-colors">
-          {closing ? "Closing…" : "Close Joint Account"}
+          {closing ? "Submitting…" : "Request account closure"}
         </button>
       </div>
     </div>

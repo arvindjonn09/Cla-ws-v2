@@ -2,21 +2,8 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { debtApi, goalApi, accountApi, rateApi } from "@/lib/api";
-import { getAccountId, fmt, fmtDate, daysUntil, convertToBase } from "@/lib/utils";
-import type { Debt, FreedomDateResponse, Goal } from "@/types";
-
-// Stage labels matching the 9-stage journey
-const STAGES = [
-  "Know Your Numbers",
-  "Stop The Bleeding",
-  "Clear Small Debts",
-  "Emergency Fund",
-  "Clear Large Debts",
-  "Save Consistently",
-  "Begin Investing",
-  "Foreign Investments",
-  "Financial Independence",
-];
+import { getPersonalAccountId, fmt, fmtDate, daysUntil, convertToBase, saveAccountMemberships } from "@/lib/utils";
+import type { Account, Debt, FreedomDateResponse, Goal } from "@/types";
 
 function FreedomDateBanner({ data }: { data: FreedomDateResponse | null }) {
   if (!data) return null;
@@ -113,9 +100,10 @@ export default function DashboardPage() {
   const [goals, setGoals] = useState<Goal[]>([]);
   const [baseCurrency, setBaseCurrency] = useState("USD");
   const [rates, setRates] = useState<Record<string, number>>({});
+  const [jointAccount, setJointAccount] = useState<Account | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const accountId = typeof window !== "undefined" ? getAccountId() : null;
+  const accountId = typeof window !== "undefined" ? getPersonalAccountId() : null;
   const userRaw = typeof window !== "undefined" ? localStorage.getItem("user") : null;
   const user = userRaw ? JSON.parse(userRaw) : null;
 
@@ -126,10 +114,13 @@ export default function DashboardPage() {
       debtApi.freedomDate(accountId).catch(() => null),
       goalApi.list(accountId).catch(() => [] as Goal[]),
       accountApi.getAccount(accountId).catch(() => null),
-    ]).then(async ([d, fd, g, acct]) => {
+      accountApi.listMine().catch(() => []),
+    ]).then(async ([d, fd, g, acct, memberships]) => {
       setDebts(d);
       setFreedomDate(fd);
       setGoals(g.filter((x) => x.status === "active").slice(0, 3));
+      saveAccountMemberships(memberships);
+      setJointAccount(memberships.find((m) => m.account.type === "joint" && m.status === "active")?.account ?? null);
 
       const bc = acct?.base_currency ?? "USD";
       setBaseCurrency(bc);
@@ -147,11 +138,7 @@ export default function DashboardPage() {
     }).finally(() => setLoading(false));
   }, [accountId]);
 
-  // Determine current stage based on debts and goals
   const activeDebts = debts.filter((d) => d.status === "active");
-  const hasDebts = activeDebts.length > 0;
-  const hasEmergencyFund = goals.some((g) => g.goal_type === "emergency_fund" && g.current_amount >= g.target_amount * 0.1);
-  const currentStage = !hasDebts ? 5 : hasEmergencyFund ? 3 : 2;
 
   if (loading) {
     return (
@@ -173,7 +160,7 @@ export default function DashboardPage() {
       <FreedomDateBanner data={freedomDate} />
 
       {/* Stats row */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 gap-3">
         <div className="rounded-xl border border-slate-700 bg-slate-800 p-4">
           <p className="text-xs text-slate-500 mb-1">Active Debts</p>
           <p className="text-xl font-bold text-red-400">{activeDebts.length}</p>
@@ -181,14 +168,6 @@ export default function DashboardPage() {
         <div className="rounded-xl border border-slate-700 bg-slate-800 p-4">
           <p className="text-xs text-slate-500 mb-1">Goals</p>
           <p className="text-xl font-bold text-green-400">{goals.length}</p>
-        </div>
-        <div className="rounded-xl border border-slate-700 bg-slate-800 p-4">
-          <p className="text-xs text-slate-500 mb-1">Stage</p>
-          <p className="text-xl font-bold text-blue-400">{currentStage}</p>
-        </div>
-        <div className="rounded-xl border border-slate-700 bg-slate-800 p-4">
-          <p className="text-xs text-slate-500 mb-1">Journey</p>
-          <p className="text-sm font-semibold text-amber-400 truncate">{STAGES[currentStage - 1]}</p>
         </div>
       </div>
 
@@ -229,43 +208,13 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Stage progress */}
-      <div className="rounded-xl border border-slate-700 bg-slate-800 p-5">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wide">9-Stage Journey</h2>
-          <Link href="/journey" className="text-xs text-blue-400 hover:text-blue-300">Full view</Link>
-        </div>
-        <div className="flex items-center gap-1.5">
-          {STAGES.map((label, i) => {
-            const stageNum = i + 1;
-            const isDone = stageNum < currentStage;
-            const isCurrent = stageNum === currentStage;
-            return (
-              <div key={stageNum} className="flex-1 flex flex-col items-center gap-1">
-                <div
-                  className={`w-full h-1.5 rounded-full transition-colors ${
-                    isDone ? "bg-green-500" : isCurrent ? "bg-blue-500" : "bg-slate-700"
-                  }`}
-                />
-                {isCurrent && (
-                  <p className="text-xs text-blue-400 text-center hidden sm:block">{stageNum}</p>
-                )}
-              </div>
-            );
-          })}
-        </div>
-        <p className="text-sm text-slate-300 mt-3 font-medium">
-          Stage {currentStage}: {STAGES[currentStage - 1]}
-        </p>
-      </div>
-
       {/* Quick actions */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
           { href: "/debts",    label: "Add Debt",        icon: "⛓"  },
           { href: "/budget",   label: "Log Expense",     icon: "📊" },
           { href: "/goals",    label: "Set Goal",        icon: "🎯" },
-          { href: "/war-room", label: "Joint Account",   icon: "🤝" },
+          ...(jointAccount ? [{ href: "/war-room", label: jointAccount.name ?? "Joint Account", icon: "🤝" }] : []),
         ].map(({ href, label, icon }) => (
           <Link
             key={href}

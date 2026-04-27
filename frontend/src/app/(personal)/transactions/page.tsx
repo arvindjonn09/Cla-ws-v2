@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState, useCallback } from "react";
 import { transactionApi } from "@/lib/api";
-import { getAccountId, fmt, fmtDate } from "@/lib/utils";
+import { getPersonalAccountId, fmt, fmtDate } from "@/lib/utils";
 import type { Transaction, TransactionType } from "@/types";
 
 const TYPE_LABELS: Record<TransactionType, string> = {
@@ -149,7 +149,7 @@ export default function TransactionsPage() {
   const [editTx, setEditTx] = useState<Transaction | null>(null);
   const [filter, setFilter] = useState<TransactionType | "all">("all");
 
-  const accountId = typeof window !== "undefined" ? getAccountId() : null;
+  const accountId = typeof window !== "undefined" ? getPersonalAccountId() : null;
 
   const load = useCallback(async () => {
     if (!accountId) return;

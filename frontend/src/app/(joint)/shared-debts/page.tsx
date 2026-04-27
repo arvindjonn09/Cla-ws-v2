@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState, useCallback } from "react";
 import { debtApi } from "@/lib/api";
-import { getAccountId, fmt, fmtDate } from "@/lib/utils";
+import { getJointAccountId, fmt, fmtDate } from "@/lib/utils";
 import type { Debt, DebtType, FreedomDateResponse } from "@/types";
 
 const DEBT_TYPE_LABELS: Record<DebtType, string> = {
@@ -127,7 +127,7 @@ export default function SharedDebtsPage() {
   const [editDebt, setEditDebt] = useState<Debt|null>(null);
   const [highlightDebtId, setHighlightDebtId] = useState<string | null>(null);
 
-  const accountId = typeof window !== "undefined" ? getAccountId() : null;
+  const accountId = typeof window !== "undefined" ? getJointAccountId() : null;
 
   const load = useCallback(async () => {
     if (!accountId) return;

@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import type { User, AuthState } from "@/types";
 import { accountApi, authApi } from "@/lib/api";
-import { saveTokens, clearTokens, saveAccountMeta } from "@/lib/utils";
+import { saveTokens, clearTokens, saveAccountMeta, saveAccountMemberships } from "@/lib/utils";
 
 function parseJwt(token: string): Record<string, unknown> | null {
   try {
@@ -68,6 +68,8 @@ export function useAuth() {
       if (accountId) {
         saveAccountMeta(accountId, accountType, role, onboardingComplete);
       }
+      const memberships = await accountApi.listMine().catch(() => []);
+      saveAccountMemberships(memberships);
 
       setState({
         user: data.user,

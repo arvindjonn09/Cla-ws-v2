@@ -15,6 +15,7 @@ class Account(Base):
     name: Mapped[str | None] = mapped_column(String, nullable=True)
     base_currency: Mapped[str] = mapped_column(String, nullable=False, default="USD")
     status: Mapped[str] = mapped_column(String, nullable=False, default="active")
+    close_requested_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
@@ -25,7 +26,12 @@ class Account(Base):
 
     members: Mapped[list["AccountMember"]] = relationship("AccountMember", back_populates="account", cascade="all, delete-orphan")
     profiles: Mapped[list["UserProfile"]] = relationship("UserProfile", back_populates="account", cascade="all, delete-orphan")
-    debts: Mapped[list["Debt"]] = relationship("Debt", back_populates="account", cascade="all, delete-orphan")
+    debts: Mapped[list["Debt"]] = relationship(
+        "Debt",
+        back_populates="account",
+        cascade="all, delete-orphan",
+        foreign_keys="Debt.account_id",
+    )
     transactions: Mapped[list["Transaction"]] = relationship("Transaction", back_populates="account", cascade="all, delete-orphan")
     goals: Mapped[list["Goal"]] = relationship("Goal", back_populates="account", cascade="all, delete-orphan")
     investments: Mapped[list["Investment"]] = relationship("Investment", back_populates="account", cascade="all, delete-orphan")

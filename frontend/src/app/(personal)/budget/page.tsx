@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState, useCallback } from "react";
 import { transactionApi } from "@/lib/api";
-import { getAccountId, fmt } from "@/lib/utils";
+import { getPersonalAccountId, fmt } from "@/lib/utils";
 import type { Transaction } from "@/types";
 
 const CATEGORIES = [
@@ -42,7 +42,7 @@ export default function BudgetPage() {
   const [loading, setLoading] = useState(true);
   const [editBudget, setEditBudget] = useState<string | null>(null);
 
-  const accountId = typeof window !== "undefined" ? getAccountId() : null;
+  const accountId = typeof window !== "undefined" ? getPersonalAccountId() : null;
 
   const load = useCallback(async () => {
     if (!accountId) return;

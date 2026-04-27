@@ -1,7 +1,9 @@
 "use client";
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { cn } from "@/lib/utils";
+import { usePathname, useRouter } from "next/navigation";
+import { accountApi } from "@/lib/api";
+import { cn, saveAccountMemberships, saveJointAccountMeta } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 
 const links = [
@@ -11,7 +13,6 @@ const links = [
   { href: "/goals",           icon: "🎯", label: "Goals"         },
   { href: "/investments",     icon: "📈", label: "Investments"   },
   { href: "/net-worth",       icon: "💎", label: "Net Worth"     },
-  { href: "/journey",         icon: "🗺",  label: "Journey"       },
   { href: "/emergency-fund",  icon: "🛡",  label: "Emergency"     },
   { href: "/subscriptions",   icon: "🔁", label: "Subscriptions" },
   { href: "/bills",           icon: "🧾", label: "Bills"         },
@@ -33,7 +34,40 @@ const mobileLinks = [
 
 export default function PersonalNav() {
   const pathname = usePathname();
+  const router = useRouter();
   const { logout, user } = useAuth();
+  const [hasJointAccount, setHasJointAccount] = useState(false);
+  const [creatingJoint, setCreatingJoint] = useState(false);
+  const [jointError, setJointError] = useState("");
+
+  useEffect(() => {
+    accountApi.listMine()
+      .then((memberships) => {
+        saveAccountMemberships(memberships);
+        setHasJointAccount(memberships.some((m) => m.account.type === "joint" && m.status === "active"));
+      })
+      .catch(() => setHasJointAccount(false));
+  }, []);
+
+  async function createJointAccount() {
+    setCreatingJoint(true);
+    setJointError("");
+    try {
+      const account = await accountApi.createJoint({
+        name: "Joint Account",
+        base_currency: "USD",
+      });
+      saveJointAccountMeta(account.id, "member", true);
+      const memberships = await accountApi.listMine().catch(() => []);
+      saveAccountMemberships(memberships);
+      setHasJointAccount(true);
+      router.push("/war-room");
+    } catch (err) {
+      setJointError(err instanceof Error ? err.message : "Failed to create joint account");
+    } finally {
+      setCreatingJoint(false);
+    }
+  }
 
   return (
     <>
@@ -67,12 +101,24 @@ export default function PersonalNav() {
 
         {/* Footer */}
         <div className="px-4 py-4 border-t border-slate-700 space-y-2">
-          <Link
-            href="/war-room"
-            className="flex items-center gap-2 text-xs text-purple-400 hover:text-purple-300"
-          >
-            <span>🤝</span> Switch to Joint
-          </Link>
+          {hasJointAccount ? (
+            <Link
+              href="/war-room"
+              className="flex items-center gap-2 text-xs text-purple-400 hover:text-purple-300"
+            >
+              <span>🤝</span> Switch to Joint
+            </Link>
+          ) : (
+            <button
+              type="button"
+              onClick={createJointAccount}
+              disabled={creatingJoint}
+              className="flex items-center gap-2 text-xs text-purple-400 hover:text-purple-300 disabled:opacity-50"
+            >
+              <span>🤝</span> {creatingJoint ? "Creating Joint..." : "Create Joint"}
+            </button>
+          )}
+          {jointError && <p className="text-xs text-red-400">{jointError}</p>}
           <button
             onClick={logout}
             className="w-full text-left text-xs text-slate-500 hover:text-red-400 transition-colors"

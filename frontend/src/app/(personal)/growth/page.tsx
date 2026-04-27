@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState, useCallback } from "react";
 import { debtApi, investmentApi, transactionApi } from "@/lib/api";
-import { getAccountId, fmt } from "@/lib/utils";
+import { getPersonalAccountId, fmt } from "@/lib/utils";
 import type { Debt, Investment, Transaction } from "@/types";
 
 function getMonthKey(iso: string) { return iso.slice(0, 7); }
@@ -16,7 +16,7 @@ export default function GrowthPage() {
   const [txns, setTxns] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const accountId = typeof window !== "undefined" ? getAccountId() : null;
+  const accountId = typeof window !== "undefined" ? getPersonalAccountId() : null;
 
   const load = useCallback(async () => {
     if (!accountId) { setLoading(false); return; }

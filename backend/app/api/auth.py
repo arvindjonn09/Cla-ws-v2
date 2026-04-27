@@ -4,7 +4,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status, BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, and_
 from urllib.parse import quote
 
 from app.core.database import get_db
@@ -98,6 +98,7 @@ async def verify_email(token: str, db: Annotated[AsyncSession, Depends(get_db)])
         select(AccountMember, Account)
         .join(Account, Account.id == AccountMember.account_id)
         .where(AccountMember.user_id == user.id, AccountMember.status == "active")
+        .order_by(Account.type == "joint", AccountMember.joined_at)
         .limit(1)
     )
     row = acc_result.first()
@@ -146,11 +147,26 @@ async def login(body: UserLogin, db: Annotated[AsyncSession, Depends(get_db)]):
             AccountMember.user_id == user.id,
             AccountMember.status == "active",
         )
+        .order_by(Account.type == "joint", AccountMember.joined_at)
         .limit(1)
     )
     row = acc_result.first()
     membership = row[0] if row else None
     account = row[1] if row else None
+
+    # Check onboarding status
+    onboarding_complete = False
+    if membership:
+        profile_result = await db.execute(
+            select(UserProfile).where(
+                and_(
+                    UserProfile.user_id == user.id,
+                    UserProfile.account_id == membership.account_id,
+                )
+            )
+        )
+        profile = profile_result.scalar_one_or_none()
+        onboarding_complete = bool(profile.onboarding_complete) if profile else False
 
     payload = {
         "sub": str(user.id),
@@ -174,6 +190,7 @@ async def login(body: UserLogin, db: Annotated[AsyncSession, Depends(get_db)]):
         access_token=access_token,
         refresh_token=refresh_token,
         user=UserOut.model_validate(user),
+        onboarding_complete=onboarding_complete,
     )
 
 

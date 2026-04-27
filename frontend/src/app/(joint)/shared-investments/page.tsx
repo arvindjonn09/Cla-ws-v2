@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState, useCallback } from "react";
 import { investmentApi } from "@/lib/api";
-import { getAccountId, fmt, assetTypeLabel } from "@/lib/utils";
+import { getJointAccountId, fmt, assetTypeLabel } from "@/lib/utils";
 import type { Investment, InvestmentSecureDetails, AssetType, PortfolioSummary } from "@/types";
 import Link from "next/link";
 
@@ -26,7 +26,7 @@ export default function SharedInvestmentsPage() {
     account_email: "", account_number: "", login_id: "", secure_notes: "",
   });
 
-  const accountId = typeof window !== "undefined" ? getAccountId() : null;
+  const accountId = typeof window !== "undefined" ? getJointAccountId() : null;
 
   const load = useCallback(async () => {
     if (!accountId) { setLoading(false); return; }

@@ -1,14 +1,14 @@
 "use client";
 import { useEffect, useState } from "react";
 import { debtApi } from "@/lib/api";
-import { getAccountId, daysUntil, fmtDate } from "@/lib/utils";
+import { getJointAccountId, daysUntil, fmtDate } from "@/lib/utils";
 import type { FreedomDateResponse } from "@/types";
 
 export default function CountdownPage() {
   const [fd, setFd] = useState<FreedomDateResponse|null>(null);
   const [loading, setLoading] = useState(true);
 
-  const accountId = typeof window !== "undefined" ? getAccountId() : null;
+  const accountId = typeof window !== "undefined" ? getJointAccountId() : null;
 
   useEffect(() => {
     if (!accountId) return;

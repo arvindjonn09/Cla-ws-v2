@@ -72,7 +72,17 @@ export function clearTokens() {
 }
 
 export function getAccountId(): string | null {
-  return localStorage.getItem("account_id");
+  return getPersonalAccountId();
+}
+
+export function getPersonalAccountId(): string | null {
+  return localStorage.getItem("personal_account_id")
+    ?? (localStorage.getItem("account_type") === "joint" ? null : localStorage.getItem("account_id"));
+}
+
+export function getJointAccountId(): string | null {
+  return localStorage.getItem("joint_account_id")
+    ?? (localStorage.getItem("account_type") === "joint" ? localStorage.getItem("account_id") : null);
 }
 
 export function saveAccountMeta(
@@ -81,10 +91,55 @@ export function saveAccountMeta(
   role: string,
   onboardingComplete: boolean
 ) {
+  if (accountType === "joint") {
+    saveJointAccountMeta(accountId, role, onboardingComplete);
+    return;
+  }
+
   localStorage.setItem("account_id", accountId);
+  localStorage.setItem("personal_account_id", accountId);
   localStorage.setItem("account_type", accountType);
   localStorage.setItem("role", role);
   localStorage.setItem("onboarding_complete", String(onboardingComplete));
+}
+
+export function saveJointAccountMeta(
+  accountId: string,
+  role: string,
+  onboardingComplete = true
+) {
+  localStorage.setItem("joint_account_id", accountId);
+  localStorage.setItem("joint_role", role);
+  localStorage.setItem("joint_onboarding_complete", String(onboardingComplete));
+}
+
+export function clearJointAccountMeta() {
+  localStorage.removeItem("joint_account_id");
+  localStorage.removeItem("joint_role");
+  localStorage.removeItem("joint_onboarding_complete");
+}
+
+export function saveAccountMemberships(
+  memberships: {
+    account: { id: string; type: string };
+    role: string;
+    status: string;
+  }[]
+) {
+  const active = memberships.filter((m) => m.status === "active");
+  const personal = active.find((m) => m.account.type === "personal");
+  const joint = active.find((m) => m.account.type === "joint");
+
+  if (personal) {
+    const onboardingComplete = localStorage.getItem("onboarding_complete") === "true";
+    saveAccountMeta(personal.account.id, "personal", personal.role, onboardingComplete);
+  }
+
+  if (joint) {
+    saveJointAccountMeta(joint.account.id, joint.role, true);
+  } else {
+    clearJointAccountMeta();
+  }
 }
 
 // ── Debt helpers ───────────────────────────────────────────────────────────────

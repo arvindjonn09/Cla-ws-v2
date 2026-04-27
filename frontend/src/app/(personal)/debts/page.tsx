@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState, useCallback } from "react";
 import { debtApi, accountApi, rateApi } from "@/lib/api";
-import { getAccountId, fmt, fmtDate, daysUntil, convertToBase, saveAccountMeta } from "@/lib/utils";
+import { getPersonalAccountId, fmt, fmtDate, daysUntil, convertToBase, saveJointAccountMeta } from "@/lib/utils";
 import type { Debt, DebtType, FreedomDateResponse } from "@/types";
 
 const DEBT_TYPE_LABELS: Record<DebtType, string> = {
@@ -92,110 +92,6 @@ function FreedomDateComparison({
   );
 }
 
-// ── Simulator ──────────────────────────────────────────────────────────────────
-
-function Simulator({ accountId, debts }: { accountId: string; debts: Debt[] }) {
-  const [amount, setAmount] = useState<number | "custom">(100);
-  const [customAmount, setCustomAmount] = useState("");
-  const [result, setResult] = useState<{ months_saved: number; interest_saved: number; new_freedom_date: string | null } | null>(null);
-  const [loading, setLoading] = useState(false);
-
-  const firstActive = debts.find((d) => d.status === "active");
-  const simCurrency = firstActive?.currency ?? "USD";
-  const presets = [50, 100, 200, 500];
-
-  async function runSim() {
-    if (!firstActive) return;
-    const extra = amount === "custom" ? parseFloat(customAmount) : amount;
-    if (!extra || extra <= 0) return;
-    setLoading(true);
-    try {
-      const r = await debtApi.simulate(accountId, firstActive.id, extra);
-      setResult(r);
-    } catch { /* ignore */ }
-    finally { setLoading(false); }
-  }
-
-  return (
-    <div className="rounded-2xl border border-amber-500/20 bg-slate-800 p-5 space-y-4">
-      <div>
-        <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wide">Extra Payment Simulator</h2>
-        <p className="text-xs text-slate-500 mt-1">
-          How much sooner could you be free? Simulates extra payment on your priority debt.
-        </p>
-      </div>
-
-      <div className="flex flex-wrap gap-2">
-        {presets.map((p) => (
-          <button
-            key={p}
-            type="button"
-            onClick={() => { setAmount(p); setResult(null); }}
-            className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${
-              amount === p
-                ? "border-amber-500 bg-amber-500/20 text-amber-300"
-                : "border-slate-700 bg-slate-900 text-slate-400 hover:border-slate-500"
-            }`}
-          >
-            +{fmt(p, simCurrency)}/mo
-          </button>
-        ))}
-        <button
-          type="button"
-          onClick={() => { setAmount("custom"); setResult(null); }}
-          className={`px-3 py-1.5 rounded-lg text-sm font-medium border transition-colors ${
-            amount === "custom"
-              ? "border-amber-500 bg-amber-500/20 text-amber-300"
-              : "border-slate-700 bg-slate-900 text-slate-400 hover:border-slate-500"
-          }`}
-        >
-          Custom
-        </button>
-      </div>
-
-      {amount === "custom" && (
-        <input
-          type="number"
-          placeholder="Enter amount"
-          value={customAmount}
-          onChange={(e) => { setCustomAmount(e.target.value); setResult(null); }}
-          className="w-40 rounded-lg border border-slate-600 bg-slate-900 px-3 py-2 text-sm text-white outline-none focus:border-amber-500"
-        />
-      )}
-
-      <button
-        type="button"
-        onClick={runSim}
-        disabled={loading || !firstActive}
-        className="rounded-lg bg-amber-600 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-500 disabled:opacity-50 transition-colors"
-      >
-        {loading ? "Calculating…" : "Simulate"}
-      </button>
-
-      {result && (
-        <div className="rounded-xl border border-green-500/30 bg-green-950/30 p-4 space-y-2">
-          <p className="text-sm font-semibold text-green-400">Results</p>
-          <div className="grid grid-cols-3 gap-4 text-center">
-            <div>
-              <p className="text-xs text-slate-500">Months Saved</p>
-              <p className="text-xl font-bold text-green-400">{result.months_saved}</p>
-            </div>
-            <div>
-              <p className="text-xs text-slate-500">Interest Saved</p>
-              <p className="text-lg font-bold text-green-400">{fmt(result.interest_saved, simCurrency)}</p>
-            </div>
-            <div>
-              <p className="text-xs text-slate-500">New Freedom Date</p>
-              <p className="text-sm font-bold text-green-400">
-                {result.new_freedom_date ? fmtDate(result.new_freedom_date) : "—"}
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
 
 // ── Add / Edit Debt Modal ──────────────────────────────────────────────────────
 
@@ -892,6 +788,8 @@ function LogPaymentModal({
 
 function DebtCard({
   debt,
+  accountId,
+  canShare,
   onEdit,
   onLogPayment,
   onDelete,
@@ -899,12 +797,37 @@ function DebtCard({
   onOpenShared,
 }: {
   debt: Debt;
+  accountId: string;
+  canShare: boolean;
   onEdit: (d: Debt) => void;
   onLogPayment: (d: Debt) => void;
   onDelete: (d: Debt) => void;
   onShareToJoint: (d: Debt) => void;
   onOpenShared: (d: Debt) => void;
 }) {
+  const [showExtra, setShowExtra] = useState(false);
+  const [extraAmt, setExtraAmt] = useState("");
+  const [simResult, setSimResult] = useState<{
+    months_saved: number;
+    interest_saved: number;
+    new_freedom_date: string | null;
+    current_monthly_payment: number;
+    new_monthly_payment: number;
+  } | null>(null);
+  const [simLoading, setSimLoading] = useState(false);
+
+  async function runExtra() {
+    const extra = parseFloat(extraAmt);
+    if (!extra || extra <= 0) return;
+    setSimLoading(true);
+    setSimResult(null);
+    try {
+      const r = await debtApi.simulate(accountId, debt.id, extra);
+      setSimResult(r);
+    } catch { /* ignore */ }
+    finally { setSimLoading(false); }
+  }
+
   const paid = debt.original_balance > 0
     ? Math.min(100, Math.round(((debt.original_balance - debt.current_balance) / debt.original_balance) * 100))
     : 0;
@@ -989,7 +912,7 @@ function DebtCard({
             Edit
           </button>
         )}
-        {!debt.is_locked && !debt.shared_to_debt_id && (
+        {!debt.is_locked && !debt.shared_to_debt_id && canShare && (
           <button
             type="button"
             onClick={() => onShareToJoint(debt)}
@@ -1007,6 +930,70 @@ function DebtCard({
           Delete
         </button>
       </div>
+
+      {/* Extra payment panel */}
+      {debt.status === "active" && debt.has_interest && (
+        <div className="border-t border-slate-700 pt-3 space-y-2">
+          <button
+            type="button"
+            onClick={() => { setShowExtra((v) => !v); setSimResult(null); setExtraAmt(""); }}
+            className="text-xs text-amber-400 hover:text-amber-300 transition-colors"
+          >
+            {showExtra ? "▲ Hide" : "▼ What if I pay extra?"}
+          </button>
+
+          {showExtra && (
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  min="1"
+                  step="1"
+                  placeholder={`Extra amount in ${debt.currency}`}
+                  value={extraAmt}
+                  onChange={(e) => { setExtraAmt(e.target.value); setSimResult(null); }}
+                  className="flex-1 rounded-lg border border-slate-600 bg-slate-900 px-3 py-1.5 text-xs text-white outline-none focus:border-amber-500"
+                />
+                <button
+                  type="button"
+                  onClick={runExtra}
+                  disabled={simLoading || !extraAmt}
+                  className="rounded-lg bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-500 disabled:opacity-50 transition-colors"
+                >
+                  {simLoading ? "…" : "Calculate"}
+                </button>
+              </div>
+
+              {simResult && (
+                <div className="rounded-lg border border-green-500/30 bg-green-950/20 p-3 grid grid-cols-2 gap-2 text-center sm:grid-cols-5">
+                  <div>
+                    <p className="text-[10px] text-slate-500 mb-0.5">New payable /mo</p>
+                    <p className="text-sm font-bold text-green-400">{fmt(simResult.new_monthly_payment, debt.currency)}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-slate-500 mb-0.5">Months saved</p>
+                    <p className="text-lg font-bold text-green-400">{simResult.months_saved}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-slate-500 mb-0.5">Interest saved</p>
+                    <p className="text-sm font-bold text-green-400">{fmt(simResult.interest_saved, debt.currency)}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-slate-500 mb-0.5">Paid off by</p>
+                    <p className="text-xs font-bold text-green-400">
+                      {simResult.new_freedom_date ? fmtDate(simResult.new_freedom_date) : "—"}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] text-slate-500 mb-0.5">Remaining</p>
+                    <p className="text-sm font-bold text-red-400">{fmt(debt.current_balance, debt.currency)}</p>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -1024,8 +1011,12 @@ export default function DebtsPage() {
   const [editDebt, setEditDebt] = useState<Debt | null>(null);
   const [payDebt, setPayDebt] = useState<Debt | null>(null);
   const [tab, setTab] = useState<"active" | "cleared">("active");
+  const [shareError, setShareError] = useState("");
 
-  const accountId = typeof window !== "undefined" ? getAccountId() : null;
+  const accountId = typeof window !== "undefined" ? getPersonalAccountId() : null;
+  const canShareToJoint =
+    typeof window !== "undefined" &&
+    !!localStorage.getItem("joint_account_id");
 
   const load = useCallback(async () => {
     if (!accountId) return;
@@ -1095,14 +1086,19 @@ export default function DebtsPage() {
   async function handleShareToJoint(debt: Debt) {
     if (!accountId) return;
     if (!confirm(`Share "${debt.name}" to your joint account? It will be locked here and editable from Shared Debts.`)) return;
-    const result = await debtApi.shareToJoint(accountId, debt.id);
-    saveAccountMeta(result.joint_account_id, "joint", "member", true);
-    window.location.href = `/shared-debts?debt=${result.joint_debt_id}`;
+    setShareError("");
+    try {
+      const result = await debtApi.shareToJoint(accountId, debt.id);
+      saveJointAccountMeta(result.joint_account_id, "member", true);
+      window.location.href = `/shared-debts?debt=${result.joint_debt_id}`;
+    } catch (err) {
+      setShareError(err instanceof Error ? err.message : "Failed to share debt");
+    }
   }
 
   function openSharedDebt(debt: Debt) {
     if (!debt.shared_to_account_id || !debt.shared_to_debt_id) return;
-    saveAccountMeta(debt.shared_to_account_id, "joint", "member", true);
+    saveJointAccountMeta(debt.shared_to_account_id, "member", true);
     window.location.href = `/shared-debts?debt=${debt.shared_to_debt_id}`;
   }
 
@@ -1181,9 +1177,13 @@ export default function DebtsPage() {
         </div>
       )}
 
-      {/* Simulator */}
-      {activeDebts.length > 0 && accountId && (
-        <Simulator accountId={accountId} debts={activeDebts} />
+
+
+      {shareError && (
+        <div className="rounded-xl border border-red-500/40 bg-red-950/30 px-4 py-3 flex items-center justify-between">
+          <p className="text-sm text-red-300">{shareError}</p>
+          <button type="button" onClick={() => setShareError("")} className="text-red-400 hover:text-red-200 ml-4 text-lg leading-none">✕</button>
+        </div>
       )}
 
       {/* Debt list */}
@@ -1234,6 +1234,8 @@ export default function DebtsPage() {
               <DebtCard
                 key={d.id}
                 debt={d}
+                accountId={accountId!}
+                canShare={canShareToJoint}
                 onEdit={(debt) => { setEditDebt(debt); setAddModal(true); }}
                 onLogPayment={setPayDebt}
                 onDelete={handleDelete}

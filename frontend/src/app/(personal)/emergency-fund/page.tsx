@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { goalApi } from "@/lib/api";
-import { getAccountId, fmt } from "@/lib/utils";
+import { getPersonalAccountId, fmt } from "@/lib/utils";
 import type { Goal } from "@/types";
 import Link from "next/link";
 
@@ -9,7 +9,7 @@ export default function EmergencyFundPage() {
   const [efGoal, setEfGoal] = useState<Goal | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const accountId = typeof window !== "undefined" ? getAccountId() : null;
+  const accountId = typeof window !== "undefined" ? getPersonalAccountId() : null;
 
   useEffect(() => {
     if (!accountId) return;

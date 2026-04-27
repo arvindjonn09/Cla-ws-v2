@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useState, useCallback } from "react";
 import { goalApi } from "@/lib/api";
-import { getAccountId, fmt, fmtDate } from "@/lib/utils";
+import { getPersonalAccountId, fmt, fmtDate } from "@/lib/utils";
 import type { Goal, GoalType } from "@/types";
 
 const GOAL_TYPE_LABELS: Record<GoalType, string> = {
@@ -212,7 +212,7 @@ export default function GoalsPage() {
   const [editGoal, setEditGoal] = useState<Goal | null>(null);
   const [tab, setTab] = useState<"active" | "completed" | "paused">("active");
 
-  const accountId = typeof window !== "undefined" ? getAccountId() : null;
+  const accountId = typeof window !== "undefined" ? getPersonalAccountId() : null;
 
   const load = useCallback(async () => {
     if (!accountId) return;

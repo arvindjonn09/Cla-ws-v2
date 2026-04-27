@@ -46,7 +46,7 @@ class Debt(Base):
         CheckConstraint("status IN ('active', 'cleared', 'paused')", name="ck_debt_status"),
     )
 
-    account: Mapped["Account"] = relationship("Account", back_populates="debts")
+    account: Mapped["Account"] = relationship("Account", back_populates="debts", foreign_keys=[account_id])
     payments: Mapped[list["DebtPayment"]] = relationship("DebtPayment", back_populates="debt", cascade="all, delete-orphan")
 
 

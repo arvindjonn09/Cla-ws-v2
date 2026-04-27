@@ -12,6 +12,7 @@ export interface TokenResponse {
   refresh_token: string;
   token_type: string;
   user: User;
+  onboarding_complete: boolean;
 }
 
 // ── Account ────────────────────────────────────────────────────────────────────
@@ -30,6 +31,15 @@ export interface Account {
 export interface AccountMember {
   id: string;
   user_id: string;
+  email: string | null;
+  full_name: string | null;
+  role: "member" | "viewer";
+  status: "active" | "pending" | "removed";
+  joined_at: string;
+}
+
+export interface AccountMembership {
+  account: Account;
   role: "member" | "viewer";
   status: "active" | "pending" | "removed";
   joined_at: string;
