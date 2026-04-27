@@ -9,14 +9,14 @@ from sqlalchemy import select, and_
 from app.core.database import get_db
 from app.core.security import generate_token
 from app.models.user import User
-from app.models.account import Account, AccountMember, UserProfile, InviteToken
+from app.models.account import Account, AccountMember, UserProfile, InviteToken, JointFormation
 from app.schemas.account import (
     AccountCreate, AccountOut, MemberOut, InviteCreate,
     UserProfileCreate, UserProfileOut, AccountMembershipOut,
 )
 from app.api.deps import get_current_user, get_account_member, require_full_member
 from app.core.config import settings
-from app.core.email import joint_invite_email
+from app.core.email import joint_invite_email, joint_formed_email
 from app.services.email_service import queue_email
 
 router = APIRouter(prefix="/api/accounts", tags=["accounts"])
@@ -66,7 +66,7 @@ async def create_joint_account(
     account = Account(type="joint", name=body.name, base_currency=body.base_currency)
     db.add(account)
     await db.flush()
-    member = AccountMember(account_id=account.id, user_id=current_user.id, role="member")
+    member = AccountMember(account_id=account.id, user_id=current_user.id, role="member", status="active")
     db.add(member)
     profile = UserProfile(user_id=current_user.id, account_id=account.id)
     db.add(profile)
@@ -216,6 +216,7 @@ async def list_members(
 @router.post("/accept-invite")
 async def accept_invite(
     token: str,
+    background_tasks: BackgroundTasks,
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
@@ -284,6 +285,31 @@ async def accept_invite(
     db.add(new_member)
     db.add(UserProfile(user_id=current_user.id, account_id=invite.account_id))
     invite.status = "accepted"
+
+    # When a full member joins, lock in the formation record and notify both members
+    if invite.role == "member":
+        db.add(JointFormation(
+            account_id=invite.account_id,
+            member_1_id=invite.invited_by,
+            member_2_id=current_user.id,
+        ))
+        # Fetch inviter to get their name/email for the notification
+        inviter_result = await db.execute(select(User).where(User.id == invite.invited_by))
+        inviter = inviter_result.scalar_one_or_none()
+        if inviter:
+            account_id_str = str(invite.account_id)
+            app_url = settings.FRONTEND_URL
+            # Email to the inviter (member 1)
+            subj1, html1 = joint_formed_email(inviter.full_name, current_user.email, account_id_str, app_url)
+            background_tasks.add_task(
+                queue_email, db, inviter.email, subj1, html1, "joint_formed", account_id_str, str(inviter.id)
+            )
+            # Email to the acceptor (member 2)
+            subj2, html2 = joint_formed_email(current_user.full_name, inviter.email, account_id_str, app_url)
+            background_tasks.add_task(
+                queue_email, db, current_user.email, subj2, html2, "joint_formed", account_id_str, str(current_user.id)
+            )
+
     await db.commit()
     await db.refresh(new_member)
 
@@ -347,6 +373,58 @@ async def close_account(
     account.status = "closed"
     await db.commit()
     return {"message": "Account closed.", "pending": False}
+
+
+# ── Joint repair ──────────────────────────────────────────────────────────────
+
+@router.post("/{account_id}/repair-joint")
+async def repair_joint_account(
+    account_id: UUID,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Restore account_members from joint_formations when records go missing or corrupt."""
+    result = await db.execute(
+        select(JointFormation).where(JointFormation.account_id == account_id)
+    )
+    formation = result.scalar_one_or_none()
+    if not formation:
+        raise HTTPException(status_code=404, detail="No formation record found — only works for accounts formed after this feature was deployed")
+
+    if current_user.id not in (formation.member_1_id, formation.member_2_id):
+        raise HTTPException(status_code=403, detail="Not authorised to repair this account")
+
+    repaired: list[str] = []
+    for user_id in [formation.member_1_id, formation.member_2_id]:
+        # Fix or create account_members row
+        existing = await db.execute(
+            select(AccountMember).where(
+                AccountMember.account_id == account_id,
+                AccountMember.user_id == user_id,
+            )
+        )
+        member = existing.scalar_one_or_none()
+        if member:
+            if member.status != "active" or member.role != "member":
+                member.status = "active"
+                member.role = "member"
+                repaired.append(f"{user_id} fixed")
+        else:
+            db.add(AccountMember(account_id=account_id, user_id=user_id, role="member", status="active"))
+            repaired.append(f"{user_id} created")
+
+        # Create UserProfile if missing
+        profile_result = await db.execute(
+            select(UserProfile).where(
+                UserProfile.account_id == account_id,
+                UserProfile.user_id == user_id,
+            )
+        )
+        if not profile_result.scalar_one_or_none():
+            db.add(UserProfile(user_id=user_id, account_id=account_id))
+
+    await db.commit()
+    return {"account_id": str(account_id), "repaired": repaired or ["nothing to fix — already healthy"]}
 
 
 # Profile endpoints

@@ -101,6 +101,17 @@ class UserProfile(Base):
     account: Mapped["Account"] = relationship("Account", back_populates="profiles")
 
 
+class JointFormation(Base):
+    """Immutable record written once when both full members are joined. Used for recovery."""
+    __tablename__ = "joint_formations"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    account_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("accounts.id", ondelete="CASCADE"), nullable=False, unique=True)
+    member_1_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    member_2_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    formed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
 class InviteToken(Base):
     __tablename__ = "invite_tokens"
 

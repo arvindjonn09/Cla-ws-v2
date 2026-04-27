@@ -183,6 +183,23 @@ def debt_payment_reminder_email(
     return subject, html
 
 
+def joint_formed_email(recipient_name: str, partner_email: str, account_id: str, app_url: str) -> tuple[str, str]:
+    subject = "Your joint account is now active — Financial Command Center"
+    html = _base_template(
+        "Your joint account is active",
+        f"""
+        <p>Hi {recipient_name},</p>
+        <p>Your joint account with <strong>{partner_email}</strong> is now active and both members are confirmed.</p>
+        <p style="background:#0f172a;border-radius:8px;padding:16px;font-family:monospace;color:#94a3b8;">
+          Account ID: <strong style="color:#f1f5f9;">{account_id}</strong>
+        </p>
+        <p>Keep this email. If anything ever goes wrong with your account, this ID is all that is needed to restore it instantly.</p>
+        <a href="{app_url}/war-room" class="btn">Go to War Room</a>
+        """,
+    )
+    return subject, html
+
+
 def joint_invite_email(invited_email: str, inviter_name: str, invite_url: str) -> tuple[str, str]:
     subject = f"{inviter_name} invited you to Financial Command Center"
     html = _base_template(
