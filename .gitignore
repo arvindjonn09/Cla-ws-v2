@@ -71,3 +71,8 @@ Thumbs.db
 
 # Secrets
 secrets/
+
+# Runtime / build artifacts
+.pids/
+frontend/tsconfig.tsbuildinfo
+.repograph/
