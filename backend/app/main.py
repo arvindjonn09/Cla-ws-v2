@@ -14,7 +14,7 @@ from app.api import import_pdf
 from app.api.joint import boundaries, scenarios, payments, members
 from app.services.exchange_rate import daily_rate_job
 from app.services.email_service import process_email_queue
-from app.services.debt_reminder import daily_debt_reminder_job
+from app.services.debt_reminder import daily_debt_reminder_job, daily_payment_warning_job
 from app.services.watchdog import get_health
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -36,6 +36,11 @@ async def _email_queue_task():
 async def _debt_reminder_task():
     async with AsyncSessionLocal() as db:
         await daily_debt_reminder_job(db)
+
+
+async def _payment_warning_task():
+    async with AsyncSessionLocal() as db:
+        await daily_payment_warning_job(db)
 
 
 @asynccontextmanager
@@ -60,6 +65,13 @@ async def lifespan(app: FastAPI):
         _debt_reminder_task,
         CronTrigger(hour=8, minute=0, timezone="Asia/Kolkata"),
         id="debt_reminders_daily",
+        replace_existing=True,
+    )
+    # Daily in-app payment warnings for joint accounts at 08:05 IST
+    scheduler.add_job(
+        _payment_warning_task,
+        CronTrigger(hour=8, minute=5, timezone="Asia/Kolkata"),
+        id="payment_warnings_daily",
         replace_existing=True,
     )
     scheduler.start()

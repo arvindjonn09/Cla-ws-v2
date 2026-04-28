@@ -1,26 +1,30 @@
 """
-Daily job — checks active monthly debts and queues payment reminder emails.
+Daily job — checks active monthly debts and queues payment reminder emails,
+and creates PaymentWarning records for joint account debts.
 
-Reminder schedule (per architecture doc):
+Email reminder schedule:
   7 days before  → email
   3 days before  → email
   payment day    → email
   3 days after   → email (missed payment check)
 
+In-app warning schedule (joint accounts only):
+  30, 7, 4, 3, 1 days before + payment day + 3 days after
+
 Deduplication: trigger_type encodes debt_id + due_date + warning type,
-so the same reminder is never queued twice for the same payment cycle.
+so the same reminder is never queued or created twice per payment cycle.
 """
 import calendar
 import logging
-from datetime import date, timedelta
+from datetime import date
 
 from sqlalchemy import select, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.debt import Debt
-from app.models.account import AccountMember
+from app.models.account import Account, AccountMember
 from app.models.user import User
-from app.models.notification import EmailLog
+from app.models.notification import EmailLog, PaymentWarning
 from app.core.email import debt_payment_reminder_email
 from app.services.email_service import queue_email
 
@@ -32,6 +36,17 @@ REMINDER_SCHEDULE = [
     (3,  "3_day",        "in 3 days"),
     (0,  "payment_day",  "today"),
     (-3, "3_day_after",  "3 days ago — did you pay?"),
+]
+
+# In-app warning schedule for joint accounts (days before/after due_date → warning_type)
+WARNING_SCHEDULE = [
+    (30, "30_day"),
+    (7,  "7_day"),
+    (4,  "4_day"),
+    (3,  "3_day"),
+    (1,  "1_day"),
+    (0,  "payment_day"),
+    (-3, "3_day_after"),
 ]
 
 
@@ -150,3 +165,65 @@ async def daily_debt_reminder_job(db: AsyncSession) -> None:
 
     if queued_count:
         logger.info("Debt reminders: queued %d emails for %s", queued_count, today)
+
+
+async def daily_payment_warning_job(db: AsyncSession) -> None:
+    """Create PaymentWarning rows for joint-account debts so the in-app
+    /payment-warnings page shows upcoming and missed payment alerts."""
+    today = date.today()
+
+    # Active monthly debts with payment_day set, belonging to active joint accounts
+    result = await db.execute(
+        select(Debt)
+        .join(Account, Account.id == Debt.account_id)
+        .where(
+            and_(
+                Debt.status == "active",
+                Debt.payment_frequency == "monthly",
+                Debt.payment_day.isnot(None),
+                Account.type == "joint",
+                Account.status == "active",
+            )
+        )
+    )
+    debts = result.scalars().all()
+
+    created_count = 0
+
+    for debt in debts:
+        try:
+            payment_day = int(debt.payment_day)
+        except (ValueError, TypeError):
+            continue
+
+        due_date = _next_due_date(payment_day)
+        days_until = (due_date - today).days
+
+        for trigger_days, warning_type in WARNING_SCHEDULE:
+            if days_until != trigger_days:
+                continue
+
+            existing = await db.execute(
+                select(PaymentWarning).where(
+                    and_(
+                        PaymentWarning.account_id == debt.account_id,
+                        PaymentWarning.debt_id == debt.id,
+                        PaymentWarning.due_date == due_date,
+                        PaymentWarning.warning_type == warning_type,
+                    )
+                ).limit(1)
+            )
+            if existing.scalar_one_or_none():
+                continue
+
+            db.add(PaymentWarning(
+                account_id=debt.account_id,
+                debt_id=debt.id,
+                due_date=due_date,
+                warning_type=warning_type,
+            ))
+            created_count += 1
+
+    if created_count:
+        await db.commit()
+        logger.info("Payment warnings: created %d records for %s", created_count, today)

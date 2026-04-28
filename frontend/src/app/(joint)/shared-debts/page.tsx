@@ -15,7 +15,7 @@ const CURRENCIES = ["EUR","USD","INR","AUD"];
 type DebtForm = {
   name: string; debt_type: DebtType; current_balance: string; original_balance: string;
   minimum_payment: string; actual_payment: string; has_interest: boolean; interest_rate: string;
-  payment_frequency: "weekly"|"biweekly"|"monthly"; currency: string;
+  payment_frequency: "weekly"|"biweekly"|"monthly"; payment_day: string; currency: string;
 };
 
 function DebtModal({ debt, onClose, onSave }: { debt: Debt|null; onClose: ()=>void; onSave: (f:DebtForm)=>Promise<void> }) {
@@ -25,6 +25,7 @@ function DebtModal({ debt, onClose, onSave }: { debt: Debt|null; onClose: ()=>vo
     minimum_payment: String(debt?.minimum_payment??""), actual_payment: String(debt?.actual_payment??""),
     has_interest: debt?.has_interest??true, interest_rate: String(debt?.interest_rate??""),
     payment_frequency: (debt?.payment_frequency??"monthly") as "weekly"|"biweekly"|"monthly",
+    payment_day: debt?.payment_day ?? "",
     currency: debt?.currency??"USD",
   });
   const [saving, setSaving] = useState(false);
@@ -103,6 +104,24 @@ function DebtModal({ debt, onClose, onSave }: { debt: Debt|null; onClose: ()=>vo
                   className="w-full rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 text-sm text-white outline-none focus:border-purple-500" />
               </div>
             )}
+            <div>
+              <label className="block text-xs text-slate-400 mb-1">Payment frequency</label>
+              <select value={form.payment_frequency} onChange={(e) => set("payment_frequency", e.target.value)}
+                className="w-full rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 text-sm text-white outline-none focus:border-purple-500">
+                <option value="monthly">Monthly</option>
+                <option value="biweekly">Bi-weekly</option>
+                <option value="weekly">Weekly</option>
+              </select>
+            </div>
+            {form.payment_frequency === "monthly" && (
+              <div>
+                <label className="block text-xs text-slate-400 mb-1">Payment day (1–31)</label>
+                <input type="number" min="1" max="31" step="1" placeholder="e.g. 25"
+                  value={form.payment_day} onChange={(e) => set("payment_day", e.target.value)}
+                  className="w-full rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 text-sm text-white outline-none focus:border-purple-500" />
+                <p className="text-xs text-slate-500 mt-1">Used to schedule payment warnings and SMTP reminders.</p>
+              </div>
+            )}
           </div>
           {error && <p className="rounded-lg bg-red-500/10 border border-red-500/20 px-3 py-2 text-sm text-red-300">{error}</p>}
           <div className="flex gap-3 pt-2">
@@ -157,7 +176,8 @@ export default function SharedDebtsPage() {
       has_interest: form.has_interest,
       interest_rate: form.has_interest && form.interest_rate ? parseFloat(form.interest_rate) : null,
       payment_frequency: form.payment_frequency, payment_type: "fixed" as const,
-      payment_day: null, months_remaining: null, currency: form.currency, is_shared: true,
+      payment_day: form.payment_frequency === "monthly" && form.payment_day ? form.payment_day : null,
+      months_remaining: null, currency: form.currency, is_shared: true,
     };
     if (editDebt) await debtApi.update(accountId, editDebt.id, payload);
     else await debtApi.create(accountId, payload);
@@ -225,6 +245,9 @@ export default function SharedDebtsPage() {
                   <div>
                     <p className="text-sm font-semibold text-slate-100">{d.name}</p>
                     <p className="text-xs text-slate-500">{DEBT_TYPE_LABELS[d.debt_type]}</p>
+                    {d.payment_day && d.payment_frequency === "monthly" && (
+                      <p className="text-xs text-amber-400/80 mt-0.5">Due on the {d.payment_day}{["11","12","13"].includes(d.payment_day) ? "th" : d.payment_day.endsWith("1") ? "st" : d.payment_day.endsWith("2") ? "nd" : d.payment_day.endsWith("3") ? "rd" : "th"} monthly</p>
+                    )}
                     {d.shared_from_debt_id && <p className="mt-1 text-xs text-purple-300">Mirrored from personal debt</p>}
                   </div>
                   <p className="text-lg font-bold text-red-400">{fmt(d.current_balance, d.currency)}</p>
