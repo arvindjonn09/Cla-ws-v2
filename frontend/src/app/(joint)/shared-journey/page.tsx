@@ -1,5 +1,4 @@
 "use client";
-import Link from "next/link";
 
 const STAGES = [
   { num: 1, title: "Know Your Numbers",     icon: "🔍" },
@@ -33,9 +32,7 @@ export default function SharedJourneyPage() {
         ))}
       </div>
 
-      <Link href="/countdown" className="block text-center text-sm text-purple-400 hover:text-purple-300">
-        See countdown to Freedom Date →
-      </Link>
+
     </div>
   );
 }

@@ -6,7 +6,6 @@ import { useAuth } from "@/hooks/useAuth";
 
 const links = [
   { href: "/war-room",          icon: "⚔",  label: "War Room"        },
-  { href: "/countdown",         icon: "⏳", label: "Countdown"       },
   { href: "/momentum",          icon: "💪", label: "Momentum"        },
   { href: "/shared-debts",      icon: "⛓",  label: "Shared Debts"    },
   { href: "/payment-warnings",  icon: "⚠",  label: "Payments"        },
